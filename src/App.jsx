@@ -131,7 +131,7 @@ export default function App() {
       } else if (status === 'wrong' && (e.key === 'r' || e.key === 'R' || e.key === 'Enter')) {
         e.preventDefault()
         retryRef.current?.()
-      } else if ((e.key === 'h' || e.key === 'H') && status === 'playing') {
+      } else if ((e.key === 'h' || e.key === 'H') && (status === 'playing' || status === 'wrong')) {
         e.preventDefault()
         hintRef.current?.()
       } else if (e.key === 'u' || e.key === 'U') {
@@ -218,7 +218,7 @@ export default function App() {
   // ── Move handler ──────────────────────────────────────────────────────────
 
   const onDrop = useCallback((from, to) => {
-    if (!game || !puzzle || status !== 'playing') return false
+    if (!game || !puzzle || (status !== 'playing' && status !== 'wrong')) return false
 
     const expected = puzzle.moves[moveIdx]
     if (!expected) return false
@@ -259,11 +259,9 @@ export default function App() {
         [to]:   { background: 'rgba(220,38,38,.45)' },
       })
       if (settings.sound) playWrong()
-      timerRef.current = setTimeout(() => {
-        setStatus('playing')
-        setMsg('')
-        setHighlights({})
-      }, 1400)
+      // No auto-clear here — leave the feedback (message, highlights, and
+      // "Restart Puzzle" button) up until the player chooses what to do next:
+      // try another move (board stays interactive), use a hint, undo, or restart.
       return false
     }
   }, [game, puzzle, moveIdx, status, settings.sound, commitCorrectMove])
@@ -271,11 +269,18 @@ export default function App() {
   // ── Hint ───────────────────────────────────────────────────────────────────
 
   const handleHint = useCallback(() => {
-    if (!game || !puzzle || status !== 'playing') return
+    if (!game || !puzzle || (status !== 'playing' && status !== 'wrong')) return
     const expected = puzzle.moves[moveIdx]
     if (!expected) return
     const from = expected.slice(0, 2)
     const to = expected.slice(2, 4)
+
+    // Using a hint clears any "wrong move" feedback so the player can focus
+    // on the highlighted squares.
+    if (status === 'wrong') {
+      setStatus('playing')
+      setMsg('')
+    }
 
     if (hintLevel === 0) {
       setHighlights({ [from]: { background: 'rgba(245,158,11,.55)' } })
@@ -360,7 +365,7 @@ export default function App() {
   const isWrong  = status === 'wrong'
   const theme    = getBoardTheme(settings.boardTheme)
   const canUndo  = history.length > 0 && status !== 'thinking'
-  const canHint  = status === 'playing'
+  const canHint  = status === 'playing' || status === 'wrong'
 
   return (
     <div className="app">
