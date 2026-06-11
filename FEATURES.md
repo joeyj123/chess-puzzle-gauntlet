@@ -7,15 +7,9 @@ implementing items from a tier. Items move to "Done" once shipped.
 (all done — see Done section)
 
 ## Tier 2 — Moderate
-- [ ] Difficulty range picker/slider (filter puzzles by rating bands: 500-800, 800-1000, 1000-1200, 1200-1500, 1500-1800, 1800-2200, 2200+)
-- [ ] Installable PWA ("Add to Home Screen" on mobile/desktop, works offline)
-- [ ] Theme/category filter (forks, pins, endgames, mates, sacrifices, etc.)
-- [ ] Tiered hint system (highlight piece -> destination square -> full move)
-- [ ] Undo/takeback for the current puzzle
 - [ ] Persistent stats via localStorage (accuracy, streaks, solved by theme/rating)
 - [ ] Daily puzzle (deterministic pick based on date)
 - [ ] Bookmark/favorite puzzles to revisit
-- [ ] Better mobile layout/responsiveness
 
 ## Tier 3 — Bigger features
 - [ ] Expand puzzle set beyond 10k, or periodically refresh
@@ -27,9 +21,15 @@ implementing items from a tier. Items move to "Done" once shipped.
 - [ ] Achievements/badges
 
 ## Tier 4 — Stretch goals (later, after polish)
-- [ ] Real-time multiplayer over wifi/internet (play a game with anyone via shareable link).
-      Requires a small free backend (e.g. Supabase/Firebase realtime DB) or
-      WebRTC + free signaling for move sync, rooms, and reconnection handling.
+- [ ] Real-time multiplayer ("Opus Magnum" — needs further design before starting):
+      - Beyond just a shareable link: support inviting people via phone number or
+        contacts, plus a friend system (usernames/profiles) so people can find and
+        challenge each other directly.
+      - Real-time move sync, game rooms, reconnection handling.
+      - Requires a small free backend (e.g. Supabase/Firebase realtime DB) or
+        WebRTC + free signaling, plus some form of accounts/identity for the
+        friend system and invites.
+      - Brainstorm only for now — do not implement yet.
 
 ## Done
 - [x] Tone down / make optional the wrong-move shake animation (toggle in ⚙ settings)
@@ -37,3 +37,9 @@ implementing items from a tier. Items move to "Done" once shipped.
 - [x] Board theme picker (colors, piece sets)
 - [x] Keyboard shortcuts (Enter/→ next puzzle, R retry, Esc close settings)
 - [x] Confetti or celebratory animation on solve
+- [x] Difficulty range picker/slider (filter puzzles by rating bands 1000-2000)
+- [x] Installable PWA (manifest + service worker, offline caching, "Add to Home Screen")
+- [x] Theme/category filter (forks, pins, mates, sacrifices, endgames, etc.)
+- [x] Tiered hint system (highlight piece -> destination -> full move)
+- [x] Undo/takeback for the current puzzle (with stat rollback)
+- [x] Better mobile layout/responsiveness (responsive breakpoints, on-screen Undo/Hint buttons)

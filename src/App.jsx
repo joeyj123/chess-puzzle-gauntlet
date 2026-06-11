@@ -2,8 +2,9 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { Chess } from 'chess.js'
 import { Chessboard } from 'react-chessboard'
 import confetti from 'canvas-confetti'
-import { loadPuzzles, getShuffledPuzzles } from './data/puzzles'
+import { loadPuzzles, getShuffledPuzzles, filterPuzzles } from './data/puzzles'
 import { boardThemes, getBoardTheme } from './data/boardThemes'
+import { puzzleThemeOptions } from './data/puzzleThemes'
 import { useSettings } from './useSettings'
 import { playCorrect, playWrong, playSolved } from './sounds'
 import './App.css'
@@ -28,6 +29,7 @@ function getMateHint(themes = []) {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function App() {
+  const [allPuzzles, setAllPuzzles] = useState(null)
   const [queue,       setQueue]       = useState([])
   const [qIdx,        setQIdx]        = useState(0)
   const [game,        setGame]        = useState(null)
@@ -41,11 +43,17 @@ export default function App() {
   const [totalSolved, setTotalSolved] = useState(0)
   const [orientation, setOrientation] = useState('white')
   const [loadError,   setLoadError]   = useState(null)
+  const [noMatch,     setNoMatch]     = useState(false)
   const [settings,    updateSettings] = useSettings()
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [hintLevel,   setHintLevel]   = useState(0)
+  const [history,     setHistory]     = useState([])
   const timerRef = useRef(null)
   const goNextRef = useRef(null)
   const retryRef = useRef(null)
+  const hintRef = useRef(null)
+  const undoRef = useRef(null)
+  const hintUsedRef = useRef(false)
 
   // ── Load a puzzle ──────────────────────────────────────────────────────────
 
@@ -61,16 +69,17 @@ export default function App() {
     setMsg('')
     setHighlights({})
     setOrientation(chess.turn() === 'w' ? 'white' : 'black')
+    setHintLevel(0)
+    setHistory([])
+    hintUsedRef.current = false
   }, [])
 
+  // Load the full puzzle set once on mount
   useEffect(() => {
     let cancelled = false
     loadPuzzles()
       .then((all) => {
-        if (cancelled) return
-        const q = getShuffledPuzzles(all)
-        setQueue(q)
-        if (q.length > 0) loadPuzzle(q[0])
+        if (!cancelled) setAllPuzzles(all)
       })
       .catch((err) => {
         if (!cancelled) setLoadError(err.message)
@@ -79,7 +88,30 @@ export default function App() {
       cancelled = true
       if (timerRef.current) clearTimeout(timerRef.current)
     }
-  }, [loadPuzzle])
+  }, [])
+
+  // Rebuild the queue whenever the puzzle set or filters change
+  useEffect(() => {
+    if (!allPuzzles) return
+    const filtered = filterPuzzles(allPuzzles, {
+      minRating: settings.ratingMin,
+      maxRating: settings.ratingMax,
+      themes: settings.themes,
+    })
+    if (filtered.length === 0) {
+      setQueue([])
+      setPuzzle(null)
+      setGame(null)
+      setNoMatch(true)
+      return
+    }
+    setNoMatch(false)
+    const shuffled = getShuffledPuzzles(filtered)
+    setQueue(shuffled)
+    setQIdx(0)
+    loadPuzzle(shuffled[0])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allPuzzles, settings.ratingMin, settings.ratingMax, settings.themes.join(','), loadPuzzle])
 
   // ── Keyboard shortcuts ────────────────────────────────────────────────────
 
@@ -99,6 +131,12 @@ export default function App() {
       } else if (status === 'wrong' && (e.key === 'r' || e.key === 'R' || e.key === 'Enter')) {
         e.preventDefault()
         retryRef.current?.()
+      } else if ((e.key === 'h' || e.key === 'H') && status === 'playing') {
+        e.preventDefault()
+        hintRef.current?.()
+      } else if (e.key === 'u' || e.key === 'U') {
+        e.preventDefault()
+        undoRef.current?.()
       }
     }
     window.addEventListener('keydown', onKeyDown)
@@ -121,8 +159,61 @@ export default function App() {
     }
   }, [puzzle, loadPuzzle])
 
-  goNextRef.current = goNext
-  retryRef.current = retry
+  // ── Commit a correct move (player drag or hint reveal) ────────────────────
+
+  const commitCorrectMove = useCallback((copy, result, { viaHint = false } = {}) => {
+    setHighlights({
+      [result.from]: { background: 'rgba(34,197,94,.45)' },
+      [result.to]:   { background: 'rgba(34,197,94,.45)' },
+    })
+
+    const hasComputerResponse = moveIdx + 1 < puzzle.moves.length
+
+    if (!hasComputerResponse) {
+      // ✓ Puzzle complete
+      setGame(copy)
+      setStatus('solved')
+      const usedHint = hintUsedRef.current || viaHint
+      setMsg(usedHint ? 'Solved (hint used)' : 'Solved! 🎉')
+      setTotalSolved(t => t + 1)
+      if (usedHint) {
+        setStreak(0)
+      } else {
+        setStreak(s => s + 1)
+      }
+      if (settings.sound) playSolved()
+      if (!usedHint) {
+        confetti({
+          particleCount: 90,
+          spread: 75,
+          origin: { y: 0.6 },
+        })
+      }
+    } else {
+      // ✓ Correct but more moves to go – play computer response
+      setGame(copy)
+      setStatus('thinking')
+      setMsg('Correct — keep going!')
+      if (settings.sound) playCorrect()
+
+      const idxAtMove = moveIdx
+      timerRef.current = setTimeout(() => {
+        const afterComp = new Chess(copy.fen())
+        const compMove = afterComp.move(uciToObj(puzzle.moves[idxAtMove + 1]))
+        if (compMove) {
+          setGame(afterComp)
+          setHighlights({
+            [compMove.from]: { background: 'rgba(255,170,0,.35)' },
+            [compMove.to]:   { background: 'rgba(255,170,0,.35)' },
+          })
+        }
+        setMoveIdx(idxAtMove + 2)
+        setStatus('playing')
+        setMsg('')
+        setHintLevel(0)
+      }, 700)
+    }
+  }, [moveIdx, puzzle, settings.sound])
 
   // ── Move handler ──────────────────────────────────────────────────────────
 
@@ -155,48 +246,8 @@ export default function App() {
       (!expected[4] || result.promotion === expected[4])
 
     if (isCorrect) {
-      setHighlights({
-        [from]: { background: 'rgba(34,197,94,.45)' },
-        [to]:   { background: 'rgba(34,197,94,.45)' },
-      })
-
-      const hasComputerResponse = moveIdx + 1 < puzzle.moves.length
-
-      if (!hasComputerResponse) {
-        // ✓ Puzzle complete
-        setGame(copy)
-        setStatus('solved')
-        setMsg('Solved! 🎉')
-        setStreak(s => s + 1)
-        setTotalSolved(t => t + 1)
-        if (settings.sound) playSolved()
-        confetti({
-          particleCount: 90,
-          spread: 75,
-          origin: { y: 0.6 },
-        })
-      } else {
-        // ✓ Correct but more moves to go – play computer response
-        setGame(copy)
-        setStatus('thinking')
-        setMsg('Correct — keep going!')
-        if (settings.sound) playCorrect()
-
-        timerRef.current = setTimeout(() => {
-          const afterComp = new Chess(copy.fen())
-          const compMove = afterComp.move(uciToObj(puzzle.moves[moveIdx + 1]))
-          if (compMove) {
-            setGame(afterComp)
-            setHighlights({
-              [compMove.from]: { background: 'rgba(255,170,0,.35)' },
-              [compMove.to]:   { background: 'rgba(255,170,0,.35)' },
-            })
-          }
-          setMoveIdx(moveIdx + 2)
-          setStatus('playing')
-          setMsg('')
-        }, 700)
-      }
+      setHistory(h => [...h, { fen: game.fen(), moveIdx }])
+      commitCorrectMove(copy, result)
       return true
 
     } else {
@@ -215,7 +266,61 @@ export default function App() {
       }, 1400)
       return false
     }
-  }, [game, puzzle, moveIdx, status, settings.sound])
+  }, [game, puzzle, moveIdx, status, settings.sound, commitCorrectMove])
+
+  // ── Hint ───────────────────────────────────────────────────────────────────
+
+  const handleHint = useCallback(() => {
+    if (!game || !puzzle || status !== 'playing') return
+    const expected = puzzle.moves[moveIdx]
+    if (!expected) return
+    const from = expected.slice(0, 2)
+    const to = expected.slice(2, 4)
+
+    if (hintLevel === 0) {
+      setHighlights({ [from]: { background: 'rgba(245,158,11,.55)' } })
+      setHintLevel(1)
+    } else if (hintLevel === 1) {
+      setHighlights({
+        [from]: { background: 'rgba(245,158,11,.55)' },
+        [to]:   { background: 'rgba(245,158,11,.55)' },
+      })
+      setHintLevel(2)
+    } else {
+      // Reveal: play the correct move for the player
+      const copy = new Chess(game.fen())
+      const result = copy.move(uciToObj(expected))
+      if (!result) return
+      hintUsedRef.current = true
+      setHistory(h => [...h, { fen: game.fen(), moveIdx }])
+      commitCorrectMove(copy, result, { viaHint: true })
+    }
+  }, [game, puzzle, moveIdx, status, hintLevel, commitCorrectMove])
+
+  // ── Undo ───────────────────────────────────────────────────────────────────
+
+  const handleUndo = useCallback(() => {
+    if (history.length === 0 || status === 'thinking') return
+    const last = history[history.length - 1]
+    if (timerRef.current) clearTimeout(timerRef.current)
+    if (status === 'solved') {
+      setTotalSolved(t => Math.max(0, t - 1))
+      if (!hintUsedRef.current) setStreak(s => Math.max(0, s - 1))
+    }
+    setHistory(h => h.slice(0, -1))
+    setGame(new Chess(last.fen))
+    setMoveIdx(last.moveIdx)
+    setStatus('playing')
+    setMsg('')
+    setHighlights({})
+    setHintLevel(0)
+    hintUsedRef.current = false
+  }, [history, status])
+
+  goNextRef.current = goNext
+  retryRef.current = retry
+  hintRef.current = handleHint
+  undoRef.current = handleUndo
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -223,6 +328,20 @@ export default function App() {
     return (
       <div className="app-loading">
         Failed to load puzzles: {loadError}
+      </div>
+    )
+  }
+
+  if (noMatch) {
+    return (
+      <div className="app-loading">
+        <p>No puzzles match your filters.</p>
+        <button
+          className="btn btn-primary"
+          onClick={() => updateSettings({ ratingMin: 1000, ratingMax: 2000, themes: [] })}
+        >
+          Reset filters
+        </button>
       </div>
     )
   }
@@ -240,6 +359,8 @@ export default function App() {
   const isSolved = status === 'solved'
   const isWrong  = status === 'wrong'
   const theme    = getBoardTheme(settings.boardTheme)
+  const canUndo  = history.length > 0 && status !== 'thinking'
+  const canHint  = status === 'playing'
 
   return (
     <div className="app">
@@ -300,8 +421,68 @@ export default function App() {
               ))}
             </select>
           </label>
+
+          <div className="settings-section">
+            <div className="settings-section-title">
+              Difficulty: {settings.ratingMin}–{settings.ratingMax}
+            </div>
+            <div className="rating-range">
+              <input
+                type="range"
+                min="1000"
+                max="2000"
+                step="50"
+                value={settings.ratingMin}
+                onChange={(e) => {
+                  const v = Math.min(Number(e.target.value), settings.ratingMax)
+                  updateSettings({ ratingMin: v })
+                }}
+              />
+              <input
+                type="range"
+                min="1000"
+                max="2000"
+                step="50"
+                value={settings.ratingMax}
+                onChange={(e) => {
+                  const v = Math.max(Number(e.target.value), settings.ratingMin)
+                  updateSettings({ ratingMax: v })
+                }}
+              />
+            </div>
+          </div>
+
+          <div className="settings-section">
+            <div className="settings-section-title">
+              Puzzle themes
+              {settings.themes.length > 0 && (
+                <button className="link-btn" onClick={() => updateSettings({ themes: [] })}>
+                  Reset
+                </button>
+              )}
+            </div>
+            <div className="theme-grid">
+              {puzzleThemeOptions.map(opt => (
+                <label key={opt.id} className="theme-chip">
+                  <input
+                    type="checkbox"
+                    checked={settings.themes.includes(opt.id)}
+                    onChange={(e) => {
+                      const next = e.target.checked
+                        ? [...settings.themes, opt.id]
+                        : settings.themes.filter(t => t !== opt.id)
+                      updateSettings({ themes: next })
+                    }}
+                  />
+                  {opt.label}
+                </label>
+              ))}
+            </div>
+            <p className="settings-hint">No themes selected = all themes</p>
+          </div>
+
           <p className="settings-hint">
-            Shortcuts: Enter/→ next puzzle · R retry · Esc close
+            Shortcuts: Enter/→ next · R retry · H hint · U undo · Esc close
           </p>
         </div>
       )}
@@ -331,6 +512,16 @@ export default function App() {
           customDarkSquareStyle={{ backgroundColor: theme.dark }}
           customLightSquareStyle={{ backgroundColor: theme.light }}
         />
+      </div>
+
+      {/* ── Controls (mobile-friendly buttons mirroring shortcuts) ── */}
+      <div className="control-row">
+        <button className="btn btn-secondary" onClick={handleUndo} disabled={!canUndo}>
+          ↺ Undo
+        </button>
+        <button className="btn btn-secondary" onClick={handleHint} disabled={!canHint}>
+          {hintLevel < 2 ? '💡 Hint' : '💡 Show Move'}
+        </button>
       </div>
 
       {/* ── Feedback ── */}

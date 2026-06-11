@@ -33,3 +33,15 @@ export function getPuzzlesByTheme(puzzles, theme) {
   const q = theme.toLowerCase()
   return puzzles.filter(p => p.themes.some(t => t.toLowerCase().includes(q)))
 }
+
+/**
+ * Filter puzzles by rating range and (optionally) a set of themes.
+ * If `themes` is empty, no theme filtering is applied.
+ */
+export function filterPuzzles(puzzles, { minRating = 0, maxRating = 9999, themes = [] } = {}) {
+  return puzzles.filter(p => {
+    if (p.rating < minRating || p.rating > maxRating) return false
+    if (themes.length > 0 && !p.themes.some(t => themes.includes(t))) return false
+    return true
+  })
+}

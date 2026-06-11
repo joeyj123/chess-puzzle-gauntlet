@@ -6,6 +6,9 @@ const defaults = {
   shake: true,
   sound: true,
   boardTheme: 'classic',
+  ratingMin: 1000,
+  ratingMax: 2000,
+  themes: [], // empty = all themes
 }
 
 function load() {
@@ -18,7 +21,7 @@ function load() {
   }
 }
 
-/** Persisted user settings (shake animation, sound, board theme). */
+/** Persisted user settings (shake animation, sound, board theme, filters). */
 export function useSettings() {
   const [settings, setSettings] = useState(load)
 
