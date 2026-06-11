@@ -1,7 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { Chess } from 'chess.js'
 import { Chessboard } from 'react-chessboard'
+import confetti from 'canvas-confetti'
 import { loadPuzzles, getShuffledPuzzles } from './data/puzzles'
+import { boardThemes, getBoardTheme } from './data/boardThemes'
+import { useSettings } from './useSettings'
+import { playCorrect, playWrong, playSolved } from './sounds'
 import './App.css'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -37,7 +41,11 @@ export default function App() {
   const [totalSolved, setTotalSolved] = useState(0)
   const [orientation, setOrientation] = useState('white')
   const [loadError,   setLoadError]   = useState(null)
+  const [settings,    updateSettings] = useSettings()
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const timerRef = useRef(null)
+  const goNextRef = useRef(null)
+  const retryRef = useRef(null)
 
   // ── Load a puzzle ──────────────────────────────────────────────────────────
 
@@ -73,6 +81,30 @@ export default function App() {
     }
   }, [loadPuzzle])
 
+  // ── Keyboard shortcuts ────────────────────────────────────────────────────
+
+  useEffect(() => {
+    function onKeyDown(e) {
+      if (e.key === 'Escape') {
+        setSettingsOpen(false)
+        return
+      }
+      // Avoid hijacking keys while typing in a form control
+      if (e.target instanceof HTMLElement && ['INPUT', 'SELECT', 'TEXTAREA'].includes(e.target.tagName)) {
+        return
+      }
+      if (status === 'solved' && (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowRight')) {
+        e.preventDefault()
+        goNextRef.current?.()
+      } else if (status === 'wrong' && (e.key === 'r' || e.key === 'R' || e.key === 'Enter')) {
+        e.preventDefault()
+        retryRef.current?.()
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [status])
+
   // ── Navigation ────────────────────────────────────────────────────────────
 
   const goNext = useCallback(() => {
@@ -88,6 +120,9 @@ export default function App() {
       setStreak(0)
     }
   }, [puzzle, loadPuzzle])
+
+  goNextRef.current = goNext
+  retryRef.current = retry
 
   // ── Move handler ──────────────────────────────────────────────────────────
 
@@ -134,11 +169,18 @@ export default function App() {
         setMsg('Solved! 🎉')
         setStreak(s => s + 1)
         setTotalSolved(t => t + 1)
+        if (settings.sound) playSolved()
+        confetti({
+          particleCount: 90,
+          spread: 75,
+          origin: { y: 0.6 },
+        })
       } else {
         // ✓ Correct but more moves to go – play computer response
         setGame(copy)
         setStatus('thinking')
         setMsg('Correct — keep going!')
+        if (settings.sound) playCorrect()
 
         timerRef.current = setTimeout(() => {
           const afterComp = new Chess(copy.fen())
@@ -165,6 +207,7 @@ export default function App() {
         [from]: { background: 'rgba(220,38,38,.45)' },
         [to]:   { background: 'rgba(220,38,38,.45)' },
       })
+      if (settings.sound) playWrong()
       timerRef.current = setTimeout(() => {
         setStatus('playing')
         setMsg('')
@@ -172,7 +215,7 @@ export default function App() {
       }, 1400)
       return false
     }
-  }, [game, puzzle, moveIdx, status])
+  }, [game, puzzle, moveIdx, status, settings.sound])
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -196,6 +239,7 @@ export default function App() {
   const hint     = getMateHint(puzzle.themes)
   const isSolved = status === 'solved'
   const isWrong  = status === 'wrong'
+  const theme    = getBoardTheme(settings.boardTheme)
 
   return (
     <div className="app">
@@ -216,8 +260,51 @@ export default function App() {
             <span className="stat-val">{totalSolved}</span>
             <span className="stat-lbl">solved</span>
           </div>
+          <button
+            className="settings-btn"
+            aria-label="Settings"
+            onClick={() => setSettingsOpen(o => !o)}
+          >
+            ⚙
+          </button>
         </div>
       </header>
+
+      {/* ── Settings panel ── */}
+      {settingsOpen && (
+        <div className="settings-panel">
+          <label className="settings-row">
+            <span>Wrong-move shake animation</span>
+            <input
+              type="checkbox"
+              checked={settings.shake}
+              onChange={(e) => updateSettings({ shake: e.target.checked })}
+            />
+          </label>
+          <label className="settings-row">
+            <span>Sound effects</span>
+            <input
+              type="checkbox"
+              checked={settings.sound}
+              onChange={(e) => updateSettings({ sound: e.target.checked })}
+            />
+          </label>
+          <label className="settings-row">
+            <span>Board theme</span>
+            <select
+              value={settings.boardTheme}
+              onChange={(e) => updateSettings({ boardTheme: e.target.value })}
+            >
+              {boardThemes.map(t => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+            </select>
+          </label>
+          <p className="settings-hint">
+            Shortcuts: Enter/→ next puzzle · R retry · Esc close
+          </p>
+        </div>
+      )}
 
       {/* ── Puzzle info ── */}
       <div className="puzzle-info">
@@ -229,7 +316,7 @@ export default function App() {
       </div>
 
       {/* ── Board ── */}
-      <div className={`board-wrap${isWrong ? ' shake' : ''}${isSolved ? ' glow-green' : ''}`}>
+      <div className={`board-wrap${isWrong && settings.shake ? ' shake' : ''}${isSolved ? ' glow-green' : ''}`}>
         <Chessboard
           position={game.fen()}
           onPieceDrop={onDrop}
@@ -241,8 +328,8 @@ export default function App() {
             borderRadius: '6px',
             boxShadow: '0 6px 32px rgba(0,0,0,.5)',
           }}
-          customDarkSquareStyle={{ backgroundColor: '#4a7c59' }}
-          customLightSquareStyle={{ backgroundColor: '#f0d9b5' }}
+          customDarkSquareStyle={{ backgroundColor: theme.dark }}
+          customLightSquareStyle={{ backgroundColor: theme.light }}
         />
       </div>
 

@@ -1,4 +1,4 @@
-/* ── Layout ─────────────────────────────────────────────────────────────── */
+/* -- Layout ------------------------------------------------------------- */
 
 .app {
   width: 100%;
@@ -20,7 +20,7 @@
   font-size: 1.1rem;
 }
 
-/* ── Header ─────────────────────────────────────────────────────────────── */
+/* -- Header --------------------------------------------------------------- */
 
 .app-header {
   width: 100%;
@@ -52,6 +52,7 @@
 
 .stats {
   display: flex;
+  align-items: center;
   gap: .75rem;
 }
 
@@ -70,7 +71,75 @@
 .stat-val  { font-size: 1.25rem; font-weight: 700; line-height: 1.1; color: #fff; }
 .stat-lbl  { font-size: .65rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .05em; }
 
-/* ── Puzzle info bar ────────────────────────────────────────────────────── */
+/* -- Settings --------------------------------------------------------------- */
+
+.settings-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  font-size: 1.1rem;
+  background: var(--surface);
+  border: 1px solid rgba(255,255,255,.07);
+  border-radius: 8px;
+  color: var(--text);
+  cursor: pointer;
+  transition: background .15s, transform .15s;
+}
+
+.settings-btn:hover {
+  background: var(--surface2);
+  transform: rotate(30deg);
+}
+
+.settings-panel {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: .6rem;
+  background: var(--surface);
+  border: 1px solid rgba(255,255,255,.07);
+  border-radius: var(--radius);
+  padding: .9rem 1rem;
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: .9rem;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.settings-row select {
+  background: var(--surface2);
+  color: var(--text);
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 6px;
+  padding: .3rem .5rem;
+  font-size: .85rem;
+}
+
+.settings-row input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.settings-hint {
+  font-size: .72rem;
+  color: var(--text-muted);
+  text-align: center;
+  margin: 0;
+  padding-top: .2rem;
+  border-top: 1px solid rgba(255,255,255,.06);
+}
+
+/* -- Puzzle info bar ---------------------------------------------------- */
 
 .puzzle-info {
   width: 100%;
@@ -108,7 +177,7 @@
   margin-left: auto;
 }
 
-/* ── Board ──────────────────────────────────────────────────────────────── */
+/* -- Board ---------------------------------------------------------------- */
 
 .board-wrap {
   width: 100%;
@@ -135,7 +204,7 @@
   animation: shake .45s ease-in-out;
 }
 
-/* ── Feedback ───────────────────────────────────────────────────────────── */
+/* -- Feedback --------------------------------------------------------------- */
 
 .feedback-area {
   width: 100%;
@@ -174,7 +243,7 @@
   border: 1px solid rgba(255,255,255,.06);
 }
 
-/* ── Buttons ────────────────────────────────────────────────────────────── */
+/* -- Buttons --------------------------------------------------------------- */
 
 .btn {
   width: 100%;
@@ -195,7 +264,7 @@
   border: 1px solid rgba(239,68,68,.35);
 }
 
-/* ── Footer ─────────────────────────────────────────────────────────────── */
+/* -- Footer --------------------------------------------------------------- */
 
 .app-footer {
   font-size: .78rem;
@@ -203,7 +272,7 @@
   text-align: center;
 }
 
-/* ── Spinner ─────────────────────────────────────────────────────────────── */
+/* -- Spinner --------------------------------------------------------------- */
 
 @keyframes spin { to { transform: rotate(360deg); } }
 
@@ -216,7 +285,7 @@
   animation: spin .8s linear infinite;
 }
 
-/* ── Responsive ─────────────────────────────────────────────────────────── */
+/* -- Responsive --------------------------------------------------------- */
 
 @media (max-width: 420px) {
   .app-header h1 { font-size: 1.05rem; }
