@@ -37,7 +37,7 @@ implementing items from a tier. Items move to "Done" once shipped.
 - [x] Board theme picker (colors, piece sets)
 - [x] Keyboard shortcuts (Enter/→ next puzzle, R retry, Esc close settings)
 - [x] Confetti or celebratory animation on solve
-- [x] Difficulty range picker/slider (filter puzzles by rating bands 1000-2000)
+- [x] Difficulty range picker/slider (filter puzzles by rating bands 500-2000, including a beginner-friendly 500-999 band)
 - [x] Installable PWA (manifest + service worker, offline caching, "Add to Home Screen")
 - [x] Theme/category filter (forks, pins, mates, sacrifices, endgames, etc.)
 - [x] Tiered hint system (highlight piece -> destination -> full move)

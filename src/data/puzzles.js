@@ -1,7 +1,7 @@
 /**
  * Chess puzzles loaded from a bundled local JSON file (public/puzzles.json),
- * sourced from the Lichess puzzle database (CC0 licensed). 10,000 puzzles,
- * ratings 1000-2000, covering a mix of themes.
+ * sourced from the Lichess puzzle database (CC0 licensed). 14,000 puzzles,
+ * ratings 500-2000, covering a mix of themes.
  *
  * Format of each puzzle:
  *   id     - Lichess puzzle id

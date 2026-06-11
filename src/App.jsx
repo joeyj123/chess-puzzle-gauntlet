@@ -429,7 +429,7 @@ export default function App() {
             <div className="rating-range">
               <input
                 type="range"
-                min="1000"
+                min="500"
                 max="2000"
                 step="50"
                 value={settings.ratingMin}
@@ -440,7 +440,7 @@ export default function App() {
               />
               <input
                 type="range"
-                min="1000"
+                min="500"
                 max="2000"
                 step="50"
                 value={settings.ratingMax}
