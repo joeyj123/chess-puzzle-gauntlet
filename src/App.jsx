@@ -48,6 +48,7 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [hintLevel,   setHintLevel]   = useState(0)
   const [history,     setHistory]     = useState([])
+  const [wrongFen,    setWrongFen]    = useState(null)
   const timerRef = useRef(null)
   const goNextRef = useRef(null)
   const retryRef = useRef(null)
@@ -71,6 +72,7 @@ export default function App() {
     setOrientation(chess.turn() === 'w' ? 'white' : 'black')
     setHintLevel(0)
     setHistory([])
+    setWrongFen(null)
     hintUsedRef.current = false
   }, [])
 
@@ -246,23 +248,29 @@ export default function App() {
       (!expected[4] || result.promotion === expected[4])
 
     if (isCorrect) {
-      setHistory(h => [...h, { fen: game.fen(), moveIdx }])
+      setHistory(h => {
+        const base = h.length && h[h.length - 1].wasWrong ? h.slice(0, -1) : h
+        return [...base, { fen: game.fen(), moveIdx }]
+      })
+      setWrongFen(null)
       commitCorrectMove(copy, result)
       return true
 
     } else {
-      // ✗ Wrong move
+      // ✗ Wrong move — show the attempted move on the board (it stays where
+      // it was dropped) along with red highlights and the message, until the
+      // player chooses what to do next: use a hint, undo, or restart. Nothing
+      // auto-clears or auto-resets.
       setStatus('wrong')
       setMsg('Not quite — try again!')
+      setWrongFen(copy.fen())
       setHighlights({
         [from]: { background: 'rgba(220,38,38,.45)' },
         [to]:   { background: 'rgba(220,38,38,.45)' },
       })
       if (settings.sound) playWrong()
-      // No auto-clear here — leave the feedback (message, highlights, and
-      // "Restart Puzzle" button) up until the player chooses what to do next:
-      // try another move (board stays interactive), use a hint, undo, or restart.
-      return false
+      setHistory(h => (h.length && h[h.length - 1].wasWrong ? h : [...h, { fen: game.fen(), moveIdx, wasWrong: true }]))
+      return true
     }
   }, [game, puzzle, moveIdx, status, settings.sound, commitCorrectMove])
 
@@ -275,11 +283,14 @@ export default function App() {
     const from = expected.slice(0, 2)
     const to = expected.slice(2, 4)
 
-    // Using a hint clears any "wrong move" feedback so the player can focus
-    // on the highlighted squares.
+    // Using a hint clears any "wrong move" feedback (and reverts the board
+    // back to the real position) so the player can focus on the highlighted
+    // squares.
     if (status === 'wrong') {
       setStatus('playing')
       setMsg('')
+      setWrongFen(null)
+      setHistory(h => (h.length && h[h.length - 1].wasWrong ? h.slice(0, -1) : h))
     }
 
     if (hintLevel === 0) {
@@ -319,6 +330,7 @@ export default function App() {
     setMsg('')
     setHighlights({})
     setHintLevel(0)
+    setWrongFen(null)
     hintUsedRef.current = false
   }, [history, status])
 
@@ -504,7 +516,7 @@ export default function App() {
       {/* ── Board ── */}
       <div className={`board-wrap${isWrong && settings.shake ? ' shake' : ''}${isSolved ? ' glow-green' : ''}`}>
         <Chessboard
-          position={game.fen()}
+          position={status === 'wrong' && wrongFen ? wrongFen : game.fen()}
           onPieceDrop={onDrop}
           boardOrientation={orientation}
           arePremovesAllowed={false}
