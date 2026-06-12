@@ -1,23 +1,16 @@
 import { useState, useEffect } from 'react'
+import { RATING_BANDS, getRatingBand } from './data/ratingBands'
+import { achievements } from './data/achievements'
+
+export { RATING_BANDS, getRatingBand }
 
 const STORAGE_KEY = 'cpg-stats'
 
-/** Rating bands used for the "solved by rating" breakdown. */
-export const RATING_BANDS = [
-  { id: '500-999',   label: '500–999',   min: 0,    max: 999 },
-  { id: '1000-1499', label: '1000–1499', min: 1000, max: 1499 },
-  { id: '1500-1999', label: '1500–1999', min: 1500, max: 1999 },
-  { id: '2000+',     label: '2000+',     min: 2000, max: Infinity },
-]
-
-/** Map a puzzle rating to one of RATING_BANDS' ids. */
-export function getRatingBand(rating) {
-  const band = RATING_BANDS.find(b => rating >= b.min && rating <= b.max)
-  return band ? band.id : RATING_BANDS[0].id
-}
-
 const defaults = {
   streak: 0,
+  // Best streak ever reached — used for streak-based achievements (the
+  // current `streak` resets on a wrong/hint move, this doesn't).
+  maxStreak: 0,
   totalSolved: 0,
   // Move-level accuracy: every legal move the player attempts (correct or
   // wrong) is tallied here. Hint reveals are not counted as attempts.
@@ -28,6 +21,8 @@ const defaults = {
   solvedByTheme: {},
   // Map of "YYYY-MM-DD" -> true for days the daily puzzle has been solved.
   dailyCompleted: {},
+  // Ids of achievements/badges already unlocked (see ./data/achievements).
+  unlockedAchievements: [],
 }
 
 function load() {
@@ -41,13 +36,16 @@ function load() {
 }
 
 /**
- * Persisted puzzle stats (streak, total solved, move accuracy, and
- * breakdowns by rating band / theme, plus daily-puzzle completion).
- * Stored under the 'cpg-stats' localStorage key, separate from
- * 'cpg-settings'.
+ * Persisted puzzle stats (streak, total solved, move accuracy, breakdowns
+ * by rating band / theme, daily-puzzle completion, and unlocked
+ * achievements). Stored under the 'cpg-stats' localStorage key, separate
+ * from 'cpg-settings'.
  */
 export function useStats() {
   const [stats, setStats] = useState(load)
+  // Transient queue of achievements unlocked this session that haven't
+  // been shown/dismissed as a toast yet. Not persisted.
+  const [newlyUnlocked, setNewlyUnlocked] = useState([])
 
   useEffect(() => {
     try {
@@ -58,7 +56,10 @@ export function useStats() {
   }, [stats])
 
   const setStreak = (updater) =>
-    setStats(s => ({ ...s, streak: typeof updater === 'function' ? updater(s.streak) : updater }))
+    setStats(s => {
+      const next = typeof updater === 'function' ? updater(s.streak) : updater
+      return { ...s, streak: next, maxStreak: Math.max(s.maxStreak, next) }
+    })
 
   const setTotalSolved = (updater) =>
     setStats(s => ({ ...s, totalSolved: typeof updater === 'function' ? updater(s.totalSolved) : updater }))
@@ -90,6 +91,7 @@ export function useStats() {
   /** Reset all stats back to zero, both in state and in localStorage. */
   const resetStats = () => {
     setStats(defaults)
+    setNewlyUnlocked([])
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(defaults))
     } catch {
@@ -97,11 +99,49 @@ export function useStats() {
     }
   }
 
+  /** Dismiss the oldest pending achievement toast. */
+  const clearNewlyUnlocked = () => setNewlyUnlocked(q => q.slice(1))
+
   const totalMoves = stats.correctMoves + stats.wrongMoves
   const accuracy = totalMoves > 0 ? Math.round((stats.correctMoves / totalMoves) * 100) : null
 
+  // ── Achievement detection ─────────────────────────────────────────────
+  // Whenever the underlying stats change, check every not-yet-unlocked
+  // achievement and persist + queue any that now pass.
+  useEffect(() => {
+    const summary = {
+      totalSolved: stats.totalSolved,
+      maxStreak: stats.maxStreak,
+      accuracy,
+      totalMoves,
+      solvedByRating: stats.solvedByRating,
+      solvedByTheme: stats.solvedByTheme,
+      dailyCompleted: stats.dailyCompleted,
+    }
+    const newly = achievements.filter(
+      a => !stats.unlockedAchievements.includes(a.id) && a.check(summary)
+    )
+    if (newly.length) {
+      setStats(s => ({
+        ...s,
+        unlockedAchievements: [...s.unlockedAchievements, ...newly.map(a => a.id)],
+      }))
+      setNewlyUnlocked(q => [...q, ...newly])
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    stats.totalSolved,
+    stats.maxStreak,
+    stats.correctMoves,
+    stats.wrongMoves,
+    stats.solvedByRating,
+    stats.solvedByTheme,
+    stats.dailyCompleted,
+  ])
+
   return {
     streak: stats.streak,
+    maxStreak: stats.maxStreak,
     totalSolved: stats.totalSolved,
     correctMoves: stats.correctMoves,
     wrongMoves: stats.wrongMoves,
@@ -109,6 +149,9 @@ export function useStats() {
     solvedByRating: stats.solvedByRating,
     solvedByTheme: stats.solvedByTheme,
     dailyCompleted: stats.dailyCompleted,
+    unlockedAchievements: stats.unlockedAchievements,
+    newlyUnlocked,
+    clearNewlyUnlocked,
     setStreak,
     setTotalSolved,
     recordMove,

@@ -183,6 +183,58 @@
   color: #fff;
 }
 
+/* -- Achievements button --------------------------------------------------- */
+
+.achievements-stat {
+  background: none;
+  border: none;
+  padding: 0;
+  gap: .25rem;
+}
+
+.achievements-btn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* 44x44 is Apple's recommended minimum touch target. */
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  font-size: 1.1rem;
+  background: var(--surface);
+  border: 1px solid rgba(255,255,255,.07);
+  border-radius: 8px;
+  color: var(--text);
+  cursor: pointer;
+  transition: background .15s;
+  flex-shrink: 0;
+}
+
+.achievements-btn:hover {
+  background: var(--surface2);
+}
+
+.achievements-count {
+  position: absolute;
+  bottom: -4px;
+  right: -6px;
+  padding: 0 4px;
+  height: 15px;
+  min-width: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: .6rem;
+  font-weight: 700;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 99px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
 .settings-panel {
   width: 100%;
   display: flex;
@@ -341,6 +393,116 @@
 .stats-breakdown-row span:last-child {
   color: var(--text);
   font-weight: 600;
+}
+
+/* -- Achievements panel ------------------------------------------------- */
+
+.badge-grid {
+  display: flex;
+  flex-direction: column;
+  gap: .5rem;
+}
+
+.badge-card {
+  display: flex;
+  align-items: center;
+  gap: .7rem;
+  background: var(--surface2);
+  border: 1px solid rgba(255,255,255,.06);
+  border-radius: 8px;
+  padding: .6rem .75rem;
+}
+
+.badge-card.locked {
+  opacity: .45;
+}
+
+.badge-card.unlocked {
+  border-color: rgba(34,197,94,.35);
+}
+
+.badge-icon {
+  font-size: 1.6rem;
+  line-height: 1;
+  flex-shrink: 0;
+  width: 2rem;
+  text-align: center;
+}
+
+.badge-card.locked .badge-icon {
+  filter: grayscale(1);
+}
+
+.badge-info {
+  display: flex;
+  flex-direction: column;
+  gap: .15rem;
+  min-width: 0;
+}
+
+.badge-name {
+  font-size: .88rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.badge-desc {
+  font-size: .76rem;
+  color: var(--text-muted);
+}
+
+/* -- Achievement toast ----------------------------------------------------- */
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translate(-50%, -12px); }
+  to   { opacity: 1; transform: translate(-50%, 0); }
+}
+
+.achievement-toast {
+  position: fixed;
+  top: max(.75rem, env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  background: var(--surface2);
+  border: 1px solid rgba(34,197,94,.45);
+  border-radius: var(--radius);
+  padding: .6rem 1rem;
+  box-shadow: 0 8px 24px rgba(0,0,0,.45);
+  animation: toast-in .25s ease-out;
+  max-width: calc(100vw - 1.5rem);
+}
+
+.toast-icon {
+  font-size: 1.6rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.toast-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.toast-title {
+  font-size: .68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--green);
+}
+
+.toast-name {
+  font-size: .92rem;
+  font-weight: 700;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .rating-range {
@@ -580,8 +742,13 @@
   .stat-val { font-size: 1.05rem; }
   .stat-lbl { font-size: .58rem; }
 
-  .settings-btn {
+  .settings-btn,
+  .achievements-btn {
     font-size: 1rem;
+  }
+
+  .achievements-count {
+    font-size: .55rem;
   }
 
   .theme-grid {

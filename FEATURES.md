@@ -16,7 +16,6 @@ implementing items from a tier. Items move to "Done" once shipped.
 - [ ] Post-solve explanation of the line / why it works
 - [ ] Local leaderboard for streaks/Puzzle Rush scores
 - [ ] Wordle-style shareable result summary
-- [ ] Achievements/badges
 
 ## Tier 4 — Stretch goals (later, after polish)
 - [ ] Real-time multiplayer ("Opus Magnum" — needs further design before starting):
@@ -43,3 +42,6 @@ implementing items from a tier. Items move to "Done" once shipped.
 - [x] Better mobile layout/responsiveness (responsive breakpoints, on-screen Undo/Hint buttons)
 - [x] Persistent stats via localStorage (move accuracy, solved by rating band and theme — view via "Show breakdown" in ⚙ settings)
 - [x] Daily puzzle (deterministic pick based on date, 📅 button in header, ✓ badge once solved)
+- [x] Achievements/badges (17 badges across solve milestones, streaks, accuracy,
+      rating-band coverage, theme specialists, and daily-puzzle completion;
+      🏆 button in header opens badge grid, toast + confetti + chime on unlock)

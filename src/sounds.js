@@ -56,3 +56,13 @@ export function playSolved() {
   tone(659.25, t + 0.12, 0.18) // E5
   tone(783.99, t + 0.24, 0.30) // G5
 }
+
+/** Bright chime for unlocking an achievement/badge. */
+export function playAchievement() {
+  const ac = getCtx()
+  if (!ac) return
+  const t = ac.currentTime
+  tone(783.99, t,        0.16, 'triangle', 0.16) // G5
+  tone(1046.5, t + 0.10, 0.16, 'triangle', 0.16) // C6
+  tone(1318.5, t + 0.20, 0.35, 'triangle', 0.18) // E6
+}

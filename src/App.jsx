@@ -7,7 +7,8 @@ import { boardThemes, getBoardTheme } from './data/boardThemes'
 import { puzzleThemeOptions } from './data/puzzleThemes'
 import { useSettings } from './useSettings'
 import { useStats, RATING_BANDS } from './useStats'
-import { playCorrect, playWrong, playSolved } from './sounds'
+import { achievements } from './data/achievements'
+import { playCorrect, playWrong, playSolved, playAchievement } from './sounds'
 import './App.css'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -42,6 +43,7 @@ export default function App() {
   const [highlights,  setHighlights]  = useState({})
   const {
     streak, totalSolved, accuracy, solvedByRating, solvedByTheme, dailyCompleted,
+    unlockedAchievements, newlyUnlocked, clearNewlyUnlocked,
     setStreak, setTotalSolved, recordMove, recordSolve, markDailyCompleted, resetStats,
   } = useStats()
   const [orientation, setOrientation] = useState('white')
@@ -58,6 +60,7 @@ export default function App() {
   const [dailyInfo,   setDailyInfo]   = useState(null) // { puzzle, dateStr }
   const [isDaily,     setIsDaily]     = useState(false)
   const [showBreakdown, setShowBreakdown] = useState(false)
+  const [achievementsOpen, setAchievementsOpen] = useState(false)
   const timerRef = useRef(null)
   const goNextRef = useRef(null)
   const retryRef = useRef(null)
@@ -141,6 +144,7 @@ export default function App() {
     function onKeyDown(e) {
       if (e.key === 'Escape') {
         setSettingsOpen(false)
+        setAchievementsOpen(false)
         return
       }
       // Avoid hijacking keys while typing in a form control
@@ -190,6 +194,23 @@ export default function App() {
     window.addEventListener('resize', updateWidth)
     return () => window.removeEventListener('resize', updateWidth)
   }, [])
+
+  // ── Achievement toasts ────────────────────────────────────────────────────
+  // Show newly-unlocked achievements one at a time, auto-dismissing each
+  // after a few seconds.
+  useEffect(() => {
+    if (newlyUnlocked.length === 0) return
+    if (settings.sound) playAchievement()
+    confetti({
+      particleCount: 60,
+      spread: 60,
+      startVelocity: 35,
+      origin: { y: 0.2 },
+    })
+    const timer = setTimeout(() => clearNewlyUnlocked(), 4000)
+    return () => clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [newlyUnlocked])
 
   // ── Navigation ────────────────────────────────────────────────────────────
 
@@ -535,6 +556,17 @@ export default function App() {
 
   return (
     <div className="app">
+      {/* ── Achievement toast ── */}
+      {newlyUnlocked[0] && (
+        <div className="achievement-toast" key={newlyUnlocked[0].id}>
+          <span className="toast-icon">{newlyUnlocked[0].icon}</span>
+          <div className="toast-text">
+            <div className="toast-title">Achievement Unlocked!</div>
+            <div className="toast-name">{newlyUnlocked[0].name}</div>
+          </div>
+        </div>
+      )}
+
       {/* ── Header ── */}
       <header className="app-header">
         <div className="brand">
@@ -566,6 +598,20 @@ export default function App() {
               )}
             </button>
             <span className="stat-lbl">{isDaily ? 'exit' : 'daily'}</span>
+          </div>
+          <div className="stat achievements-stat">
+            <button
+              className="achievements-btn"
+              aria-label="Achievements"
+              title="Achievements"
+              onClick={() => setAchievementsOpen(o => !o)}
+            >
+              🏆
+              <span className="achievements-count">
+                {unlockedAchievements.length}/{achievements.length}
+              </span>
+            </button>
+            <span className="stat-lbl">badges</span>
           </div>
           <button
             className="settings-btn"
@@ -735,6 +781,36 @@ export default function App() {
           <p className="settings-hint">
             Shortcuts: Enter/→ next · R retry · H hint · U undo · Esc close
           </p>
+        </div>
+      )}
+
+      {/* ── Achievements panel ── */}
+      {achievementsOpen && (
+        <div className="settings-panel">
+          <div className="settings-panel-header">
+            <h2>Achievements ({unlockedAchievements.length}/{achievements.length})</h2>
+            <button
+              className="settings-close-btn"
+              aria-label="Close achievements"
+              onClick={() => setAchievementsOpen(false)}
+            >
+              ✕
+            </button>
+          </div>
+          <div className="badge-grid">
+            {achievements.map(a => {
+              const unlocked = unlockedAchievements.includes(a.id)
+              return (
+                <div className={`badge-card${unlocked ? ' unlocked' : ' locked'}`} key={a.id}>
+                  <div className="badge-icon">{a.icon}</div>
+                  <div className="badge-info">
+                    <div className="badge-name">{a.name}</div>
+                    <div className="badge-desc">{a.description}</div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
         </div>
       )}
 
