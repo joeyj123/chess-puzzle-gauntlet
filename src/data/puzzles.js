@@ -45,3 +45,27 @@ export function filterPuzzles(puzzles, { minRating = 0, maxRating = 9999, themes
     return true
   })
 }
+
+/** Simple deterministic string hash (32-bit). */
+function hashString(str) {
+  let h = 0
+  for (let i = 0; i < str.length; i++) {
+    h = (h << 5) - h + str.charCodeAt(i)
+    h |= 0
+  }
+  return Math.abs(h)
+}
+
+/**
+ * Pick a deterministic "puzzle of the day" from the full puzzle set, based
+ * on the player's local calendar date. The same date always yields the same
+ * puzzle (for everyone, regardless of rating/theme filters), and a new
+ * puzzle is picked each day.
+ *
+ * Returns `{ puzzle, dateStr }` where `dateStr` is "YYYY-MM-DD".
+ */
+export function getDailyPuzzle(puzzles, date = new Date()) {
+  const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+  const idx = hashString(dateStr) % puzzles.length
+  return { puzzle: puzzles[idx], dateStr }
+}

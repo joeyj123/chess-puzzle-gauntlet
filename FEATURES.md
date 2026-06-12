@@ -7,9 +7,7 @@ implementing items from a tier. Items move to "Done" once shipped.
 (all done — see Done section)
 
 ## Tier 2 — Moderate
-- [ ] Persistent stats via localStorage (accuracy, streaks, solved by theme/rating)
-- [ ] Daily puzzle (deterministic pick based on date)
-- [ ] Bookmark/favorite puzzles to revisit
+(all done — see Done section)
 
 ## Tier 3 — Bigger features
 - [ ] Expand puzzle set beyond 10k, or periodically refresh
@@ -43,3 +41,5 @@ implementing items from a tier. Items move to "Done" once shipped.
 - [x] Tiered hint system (highlight piece -> destination -> full move)
 - [x] Undo/takeback for the current puzzle (with stat rollback)
 - [x] Better mobile layout/responsiveness (responsive breakpoints, on-screen Undo/Hint buttons)
+- [x] Persistent stats via localStorage (move accuracy, solved by rating band and theme — view via "Show breakdown" in ⚙ settings)
+- [x] Daily puzzle (deterministic pick based on date, 📅 button in header, ✓ badge once solved)

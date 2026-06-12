@@ -2,11 +2,11 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { Chess } from 'chess.js'
 import { Chessboard } from 'react-chessboard'
 import confetti from 'canvas-confetti'
-import { loadPuzzles, getShuffledPuzzles, filterPuzzles } from './data/puzzles'
+import { loadPuzzles, getShuffledPuzzles, filterPuzzles, getDailyPuzzle } from './data/puzzles'
 import { boardThemes, getBoardTheme } from './data/boardThemes'
 import { puzzleThemeOptions } from './data/puzzleThemes'
 import { useSettings } from './useSettings'
-import { useStats } from './useStats'
+import { useStats, RATING_BANDS } from './useStats'
 import { playCorrect, playWrong, playSolved } from './sounds'
 import './App.css'
 
@@ -40,7 +40,10 @@ export default function App() {
   // status: 'idle' | 'playing' | 'thinking' | 'wrong' | 'solved'
   const [msg,         setMsg]         = useState('')
   const [highlights,  setHighlights]  = useState({})
-  const { streak, totalSolved, setStreak, setTotalSolved, resetStats } = useStats()
+  const {
+    streak, totalSolved, accuracy, solvedByRating, solvedByTheme, dailyCompleted,
+    setStreak, setTotalSolved, recordMove, recordSolve, markDailyCompleted, resetStats,
+  } = useStats()
   const [orientation, setOrientation] = useState('white')
   const [loadError,   setLoadError]   = useState(null)
   const [noMatch,     setNoMatch]     = useState(false)
@@ -52,6 +55,9 @@ export default function App() {
   const [selectedSquare, setSelectedSquare] = useState(null)
   const [legalTargets,   setLegalTargets]   = useState([])
   const [boardWidth,  setBoardWidth]  = useState(480)
+  const [dailyInfo,   setDailyInfo]   = useState(null) // { puzzle, dateStr }
+  const [isDaily,     setIsDaily]     = useState(false)
+  const [showBreakdown, setShowBreakdown] = useState(false)
   const timerRef = useRef(null)
   const goNextRef = useRef(null)
   const retryRef = useRef(null)
@@ -98,6 +104,13 @@ export default function App() {
     }
   }, [])
 
+  // Pick today's deterministic "puzzle of the day" once the full set is
+  // loaded. Same puzzle for everyone on a given calendar date.
+  useEffect(() => {
+    if (!allPuzzles) return
+    setDailyInfo(getDailyPuzzle(allPuzzles))
+  }, [allPuzzles])
+
   // Rebuild the queue whenever the puzzle set or filters change
   useEffect(() => {
     if (!allPuzzles) return
@@ -117,6 +130,7 @@ export default function App() {
     const shuffled = getShuffledPuzzles(filtered)
     setQueue(shuffled)
     setQIdx(0)
+    setIsDaily(false)
     loadPuzzle(shuffled[0])
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allPuzzles, settings.ratingMin, settings.ratingMax, settings.themes.join(','), loadPuzzle])
@@ -193,6 +207,18 @@ export default function App() {
     }
   }, [puzzle, loadPuzzle])
 
+  // Toggle between today's daily puzzle and the regular shuffled queue.
+  // Leaving daily mode returns to whatever queue puzzle was active before.
+  const toggleDaily = useCallback(() => {
+    if (isDaily) {
+      setIsDaily(false)
+      if (queue[qIdx]) loadPuzzle(queue[qIdx])
+    } else if (dailyInfo) {
+      setIsDaily(true)
+      loadPuzzle(dailyInfo.puzzle)
+    }
+  }, [isDaily, dailyInfo, queue, qIdx, loadPuzzle])
+
   // ── Commit a correct move (player drag or hint reveal) ────────────────────
 
   const commitCorrectMove = useCallback((copy, result, { viaHint = false } = {}) => {
@@ -210,6 +236,10 @@ export default function App() {
       const usedHint = hintUsedRef.current || viaHint
       setMsg(usedHint ? 'Solved (hint used)' : 'Solved! 🎉')
       setTotalSolved(t => t + 1)
+      recordSolve(puzzle)
+      if (isDaily && dailyInfo) {
+        markDailyCompleted(dailyInfo.dateStr)
+      }
       if (usedHint) {
         setStreak(0)
       } else {
@@ -247,7 +277,7 @@ export default function App() {
         setHintLevel(0)
       }, 700)
     }
-  }, [moveIdx, puzzle, settings.sound])
+  }, [moveIdx, puzzle, settings.sound, recordSolve, isDaily, dailyInfo, markDailyCompleted])
 
   // ── Move handler ──────────────────────────────────────────────────────────
   // Shared by both input methods: drag-and-drop (onDrop) and click/tap-to-move
@@ -288,6 +318,7 @@ export default function App() {
         return [...base, { fen: game.fen(), moveIdx }]
       })
       setWrongFen(null)
+      recordMove(true)
       commitCorrectMove(copy, result)
       return true
 
@@ -304,10 +335,11 @@ export default function App() {
         [to]:   { background: 'rgba(220,38,38,.45)' },
       })
       if (settings.sound) playWrong()
+      recordMove(false)
       setHistory(h => (h.length && h[h.length - 1].wasWrong ? h : [...h, { fen: game.fen(), moveIdx, wasWrong: true }]))
       return true
     }
-  }, [game, puzzle, moveIdx, status, settings.sound, commitCorrectMove])
+  }, [game, puzzle, moveIdx, status, settings.sound, commitCorrectMove, recordMove])
 
   // Drag-and-drop entry point.
   const onDrop = useCallback((from, to) => {
@@ -521,6 +553,18 @@ export default function App() {
             <span className="stat-lbl">solved</span>
           </div>
           <button
+            className={`daily-btn${isDaily ? ' active' : ''}`}
+            aria-label={isDaily ? 'Back to regular puzzles' : "Daily puzzle"}
+            title={isDaily ? 'Back to regular puzzles' : "Today's puzzle"}
+            onClick={toggleDaily}
+            disabled={!dailyInfo}
+          >
+            📅
+            {dailyInfo && dailyCompleted[dailyInfo.dateStr] && (
+              <span className="daily-check">✓</span>
+            )}
+          </button>
+          <button
             className="settings-btn"
             aria-label="Settings"
             onClick={() => setSettingsOpen(o => !o)}
@@ -632,6 +676,54 @@ export default function App() {
 
           <div className="settings-section">
             <div className="settings-section-title">Stats</div>
+            <div className="stats-overview">
+              <div className="stats-overview-row">
+                <span>Accuracy</span>
+                <span>{accuracy === null ? '—' : `${accuracy}%`}</span>
+              </div>
+              <div className="stats-overview-row">
+                <span>Total solved</span>
+                <span>{totalSolved}</span>
+              </div>
+              <div className="stats-overview-row">
+                <span>Current streak</span>
+                <span>{streak}</span>
+              </div>
+            </div>
+
+            <button className="link-btn" onClick={() => setShowBreakdown(b => !b)}>
+              {showBreakdown ? 'Hide breakdown' : 'Show breakdown'}
+            </button>
+
+            {showBreakdown && (
+              <div className="stats-breakdown">
+                <div className="stats-breakdown-group">
+                  <div className="stats-breakdown-title">Solved by rating</div>
+                  {RATING_BANDS.map(band => (
+                    <div className="stats-breakdown-row" key={band.id}>
+                      <span>{band.label}</span>
+                      <span>{solvedByRating[band.id] || 0}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="stats-breakdown-group">
+                  <div className="stats-breakdown-title">Solved by theme</div>
+                  {puzzleThemeOptions.some(opt => solvedByTheme[opt.id]) ? (
+                    puzzleThemeOptions
+                      .filter(opt => solvedByTheme[opt.id])
+                      .map(opt => (
+                        <div className="stats-breakdown-row" key={opt.id}>
+                          <span>{opt.label}</span>
+                          <span>{solvedByTheme[opt.id]}</span>
+                        </div>
+                      ))
+                  ) : (
+                    <p className="settings-hint">No solves recorded yet</p>
+                  )}
+                </div>
+              </div>
+            )}
+
             <button className="btn btn-danger" onClick={handleResetStats}>
               Reset Stats
             </button>
@@ -645,6 +737,7 @@ export default function App() {
 
       {/* ── Puzzle info ── */}
       <div className="puzzle-info">
+        {isDaily && <span className="daily-badge">📅 Daily Puzzle</span>}
         <span className="hint-badge">{hint}</span>
         <span className="turn-badge">
           {orientation === 'white' ? '⬜ White' : '⬛ Black'} to move
@@ -694,9 +787,15 @@ export default function App() {
         )}
 
         {isSolved && (
-          <button className="btn btn-primary" onClick={goNext}>
-            Next Puzzle →
-          </button>
+          isDaily ? (
+            <button className="btn btn-primary" onClick={toggleDaily}>
+              ← Back to Puzzles
+            </button>
+          ) : (
+            <button className="btn btn-primary" onClick={goNext}>
+              Next Puzzle →
+            </button>
+          )
         )}
 
         {isWrong && (
