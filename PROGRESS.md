@@ -9,37 +9,56 @@ Chess Puzzle Gauntlet — React + Vite PWA. Repo: github.com/joeyj123/chess-puzz
 
 ## Status
 - Tier 1 & 2 features done (see FEATURES.md "Done" section).
-- Tier 3: Achievements/badges done (2026-06-12, uncommitted — see below).
+- Tier 3: Achievements/badges done and pushed (commit `6a53d42`, 2026-06-12).
   Remaining Tier 3 items not started.
-- Commit `2c97355` "Clarify move instructions and add label to daily puzzle
-  button" is committed and pushed (branch was "up to date with origin/main"
-  as of 2026-06-12). Also added CLAUDE.md, PROGRESS.md, .claudeignore for the
-  new session-handoff workflow (CLAUDE.md was still untracked as of
-  2026-06-12 — add/commit it next session if not already done).
+- CLAUDE.md is now tracked (added in `6a53d42`).
+- Mobile header consolidation + confetti centering fixes done 2026-06-12,
+  NOT YET committed/pushed (see "Last completed feature" below — give user
+  the commit/push commands).
 
-## Pending changes (uncommitted, 2026-06-12)
-Achievements/badges feature — 17 badges (solve milestones, streaks, accuracy,
-rating-band coverage, theme specialists, daily completion). New files:
-- `src/data/achievements.js` — badge definitions + `check(summary)` fns
-- `src/data/ratingBands.js` — RATING_BANDS/getRatingBand (extracted from
-  useStats.js to avoid a circular import with achievements.js)
+## Last completed feature (2026-06-12, uncommitted)
+Mobile header cleanup + confetti/achievement fixes, addressing: cramped
+mobile header (daily/achievements/settings buttons), confetti firing on app
+open, and confetti bursting off-center.
+
+New files:
+- `src/confetti.js` — `fireConfettiFromElement(el, options)`. Uses its own
+  full-viewport canvas (`confetti.create` with `position:fixed; inset:0`)
+  instead of canvas-confetti's default canvas (which sizes itself from
+  `document.documentElement.clientWidth/Height` and can drift off-center).
+  Origin x/y is computed from the target element's `getBoundingClientRect()`
+  relative to `window.innerWidth/innerHeight`.
 
 Modified files:
-- `src/useStats.js` — rewritten: tracks `maxStreak`, `unlockedAchievements`,
-  `newlyUnlocked` toast queue; re-exports RATING_BANDS/getRatingBand from the
-  new ratingBands.js for backward compat.
-- `src/sounds.js` — added `playAchievement()` chime.
-- `src/App.jsx` — added achievements header button (🏆 with x/y count),
-  achievements panel (badge grid), and toast+confetti+chime on unlock.
-- `src/App.css` — added `.achievements-stat/.achievements-btn/.achievements-count`,
-  `.badge-grid/.badge-card/.badge-icon/.badge-info`, `.achievement-toast` +
-  keyframes, plus mobile breakpoint tweaks.
+- `src/App.jsx`:
+  - Header now shows streak + solved stats and a single ☰ menu button
+    (`.menu-wrap`/`.menu-btn`/`.menu-dropdown`/`.menu-item`). The dropdown
+    has 3 items: Today's Puzzle (daily toggle, ✓ badge when completed),
+    Achievements (x/y badge), Settings. Replaces the separate daily/
+    achievements/settings header buttons.
+  - Opening achievements or settings from the menu closes the other (mutually
+    exclusive panels). Menu closes on outside click/tap and Escape.
+  - Solve confetti now anchors to `boardWrapRef`; achievement-toast confetti
+    anchors to a new `toastRef` (fired via `requestAnimationFrame` so the
+    toast has a rect to measure).
+  - Replaced direct `canvas-confetti` import with `fireConfettiFromElement`
+    from `./confetti`.
+- `src/useStats.js` — achievement-check effect now skips the
+  toast/confetti celebration on the very first run after mount (backfills
+  `unlockedAchievements` silently for already-met achievements instead of
+  popping confetti immediately on app open). Added `isFirstCheckRef`.
+- `src/App.css` — removed `.settings-btn`, `.daily-stat/.daily-btn/
+  .daily-check`, `.achievements-stat/.achievements-btn/.achievements-count`;
+  added `.menu-wrap/.menu-btn/.menu-btn-icon/.menu-dot/.menu-dropdown/
+  .menu-item*` and updated the `max-width: 480px` breakpoint accordingly.
+  `.daily-badge` (used in the puzzle-info bar) kept as-is.
 
-Verification: build could not be run via sandbox bash (stale mount of
-App.jsx — showed old 814-line version regardless of edits). Verified
-correctness via full manual Read of App.jsx (906 lines, balanced JSX/braces,
-correct structure end-to-end). **Next session: run `npm run build` /
-`npm run dev` locally to confirm, then commit + push.**
+Note on "does it save per user": there's no account system — stats/
+achievements persist via `localStorage` (`cpg-stats` key) per browser/device,
+same as before. Not cross-device.
+
+Note: build wasn't run via sandbox bash (stale mount issue, see gotchas) —
+verified via full manual Read instead, same as the previous session.
 
 ## Known gotchas
 - User runs commands in **PowerShell 5.1** — `&&` is NOT a valid statement

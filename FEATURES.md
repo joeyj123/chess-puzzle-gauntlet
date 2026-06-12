@@ -45,3 +45,7 @@ implementing items from a tier. Items move to "Done" once shipped.
 - [x] Achievements/badges (17 badges across solve milestones, streaks, accuracy,
       rating-band coverage, theme specialists, and daily-puzzle completion;
       🏆 button in header opens badge grid, toast + confetti + chime on unlock)
+- [x] Mobile header cleanup: consolidated Daily/Achievements/Settings into a
+      single ☰ menu dropdown; fixed confetti popping on app open (achievement
+      backfill no longer celebrates) and confetti origin being off-center
+      (now anchored to the board / toast via getBoundingClientRect)

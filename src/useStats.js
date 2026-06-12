@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { RATING_BANDS, getRatingBand } from './data/ratingBands'
 import { achievements } from './data/achievements'
 
@@ -108,6 +108,14 @@ export function useStats() {
   // ── Achievement detection ─────────────────────────────────────────────
   // Whenever the underlying stats change, check every not-yet-unlocked
   // achievement and persist + queue any that now pass.
+  //
+  // On the very first run (initial mount), stats loaded from localStorage
+  // may already satisfy achievements that didn't exist yet when they were
+  // earned (e.g. this badge system was added after the player had already
+  // solved puzzles). Silently backfill those as unlocked without a
+  // toast/confetti celebration — only achievements newly earned *during*
+  // this session should celebrate.
+  const isFirstCheckRef = useRef(true)
   useEffect(() => {
     const summary = {
       totalSolved: stats.totalSolved,
@@ -126,8 +134,11 @@ export function useStats() {
         ...s,
         unlockedAchievements: [...s.unlockedAchievements, ...newly.map(a => a.id)],
       }))
-      setNewlyUnlocked(q => [...q, ...newly])
+      if (!isFirstCheckRef.current) {
+        setNewlyUnlocked(q => [...q, ...newly])
+      }
     }
+    isFirstCheckRef.current = false
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     stats.totalSolved,

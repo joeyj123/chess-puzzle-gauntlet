@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { Chess } from 'chess.js'
 import { Chessboard } from 'react-chessboard'
-import confetti from 'canvas-confetti'
+import { fireConfettiFromElement } from './confetti'
 import { loadPuzzles, getShuffledPuzzles, filterPuzzles, getDailyPuzzle } from './data/puzzles'
 import { boardThemes, getBoardTheme } from './data/boardThemes'
 import { puzzleThemeOptions } from './data/puzzleThemes'
@@ -61,6 +61,7 @@ export default function App() {
   const [isDaily,     setIsDaily]     = useState(false)
   const [showBreakdown, setShowBreakdown] = useState(false)
   const [achievementsOpen, setAchievementsOpen] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
   const timerRef = useRef(null)
   const goNextRef = useRef(null)
   const retryRef = useRef(null)
@@ -68,6 +69,8 @@ export default function App() {
   const undoRef = useRef(null)
   const hintUsedRef = useRef(false)
   const boardWrapRef = useRef(null)
+  const toastRef = useRef(null)
+  const menuRef = useRef(null)
 
   // ── Load a puzzle ──────────────────────────────────────────────────────────
 
@@ -145,6 +148,7 @@ export default function App() {
       if (e.key === 'Escape') {
         setSettingsOpen(false)
         setAchievementsOpen(false)
+        setMenuOpen(false)
         return
       }
       // Avoid hijacking keys while typing in a form control
@@ -195,17 +199,37 @@ export default function App() {
     return () => window.removeEventListener('resize', updateWidth)
   }, [])
 
+  // ── Header menu (Daily/Achievements/Settings) ────────────────────────────
+  // Close the dropdown when tapping/clicking anywhere outside of it.
+  useEffect(() => {
+    if (!menuOpen) return
+    function onPointerDown(e) {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', onPointerDown)
+    document.addEventListener('touchstart', onPointerDown)
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown)
+      document.removeEventListener('touchstart', onPointerDown)
+    }
+  }, [menuOpen])
+
   // ── Achievement toasts ────────────────────────────────────────────────────
   // Show newly-unlocked achievements one at a time, auto-dismissing each
   // after a few seconds.
   useEffect(() => {
     if (newlyUnlocked.length === 0) return
     if (settings.sound) playAchievement()
-    confetti({
-      particleCount: 60,
-      spread: 60,
-      startVelocity: 35,
-      origin: { y: 0.2 },
+    // Defer to the next frame so the toast has rendered and toastRef has a
+    // real bounding rect to center the confetti on.
+    requestAnimationFrame(() => {
+      fireConfettiFromElement(toastRef, {
+        particleCount: 60,
+        spread: 60,
+        startVelocity: 35,
+      })
     })
     const timer = setTimeout(() => clearNewlyUnlocked(), 4000)
     return () => clearTimeout(timer)
@@ -268,7 +292,7 @@ export default function App() {
       }
       if (settings.sound) playSolved()
       if (!usedHint) {
-        confetti({
+        fireConfettiFromElement(boardWrapRef, {
           particleCount: 90,
           spread: 75,
           origin: { y: 0.6 },
@@ -558,7 +582,7 @@ export default function App() {
     <div className="app">
       {/* ── Achievement toast ── */}
       {newlyUnlocked[0] && (
-        <div className="achievement-toast" key={newlyUnlocked[0].id}>
+        <div className="achievement-toast" key={newlyUnlocked[0].id} ref={toastRef}>
           <span className="toast-icon">{newlyUnlocked[0].icon}</span>
           <div className="toast-text">
             <div className="toast-title">Achievement Unlocked!</div>
@@ -584,42 +608,57 @@ export default function App() {
             <span className="stat-val">{totalSolved}</span>
             <span className="stat-lbl">solved</span>
           </div>
-          <div className="stat daily-stat">
+          <div className="menu-wrap" ref={menuRef}>
             <button
-              className={`daily-btn${isDaily ? ' active' : ''}`}
-              aria-label={isDaily ? 'Back to regular puzzles' : "Daily puzzle"}
-              title={isDaily ? 'Back to regular puzzles' : "Today's puzzle"}
-              onClick={toggleDaily}
-              disabled={!dailyInfo}
+              className="menu-btn"
+              aria-label="Menu"
+              aria-expanded={menuOpen}
+              onClick={() => setMenuOpen(o => !o)}
             >
-              📅
-              {dailyInfo && dailyCompleted[dailyInfo.dateStr] && (
-                <span className="daily-check">✓</span>
-              )}
+              <span className="menu-btn-icon">☰</span>
+              {dailyInfo && !dailyCompleted[dailyInfo.dateStr] && <span className="menu-dot" />}
             </button>
-            <span className="stat-lbl">{isDaily ? 'exit' : 'daily'}</span>
+            {menuOpen && (
+              <div className="menu-dropdown">
+                <button
+                  className="menu-item"
+                  disabled={!dailyInfo}
+                  onClick={() => { toggleDaily(); setMenuOpen(false) }}
+                >
+                  <span className="menu-item-icon">📅</span>
+                  <span className="menu-item-label">{isDaily ? 'Back to Puzzles' : "Today's Puzzle"}</span>
+                  {dailyInfo && dailyCompleted[dailyInfo.dateStr] && (
+                    <span className="menu-item-badge done">✓</span>
+                  )}
+                </button>
+                <button
+                  className="menu-item"
+                  onClick={() => {
+                    setAchievementsOpen(o => !o)
+                    setSettingsOpen(false)
+                    setMenuOpen(false)
+                  }}
+                >
+                  <span className="menu-item-icon">🏆</span>
+                  <span className="menu-item-label">Achievements</span>
+                  <span className="menu-item-badge">
+                    {unlockedAchievements.length}/{achievements.length}
+                  </span>
+                </button>
+                <button
+                  className="menu-item"
+                  onClick={() => {
+                    setSettingsOpen(o => !o)
+                    setAchievementsOpen(false)
+                    setMenuOpen(false)
+                  }}
+                >
+                  <span className="menu-item-icon">⚙</span>
+                  <span className="menu-item-label">Settings</span>
+                </button>
+              </div>
+            )}
           </div>
-          <div className="stat achievements-stat">
-            <button
-              className="achievements-btn"
-              aria-label="Achievements"
-              title="Achievements"
-              onClick={() => setAchievementsOpen(o => !o)}
-            >
-              🏆
-              <span className="achievements-count">
-                {unlockedAchievements.length}/{achievements.length}
-              </span>
-            </button>
-            <span className="stat-lbl">badges</span>
-          </div>
-          <button
-            className="settings-btn"
-            aria-label="Settings"
-            onClick={() => setSettingsOpen(o => !o)}
-          >
-            ⚙
-          </button>
         </div>
       </header>
 

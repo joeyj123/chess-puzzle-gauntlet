@@ -92,42 +92,14 @@
 .stat-val  { font-size: 1.25rem; font-weight: 700; line-height: 1.1; color: #fff; }
 .stat-lbl  { font-size: .65rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .05em; }
 
-/* -- Settings --------------------------------------------------------------- */
+/* -- Header menu (Daily / Achievements / Settings) ------------------------- */
 
-.settings-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  /* 44x44 is Apple's recommended minimum touch target. */
-  width: 44px;
-  height: 44px;
-  min-width: 44px;
-  min-height: 44px;
-  font-size: 1.1rem;
-  background: var(--surface);
-  border: 1px solid rgba(255,255,255,.07);
-  border-radius: 8px;
-  color: var(--text);
-  cursor: pointer;
-  transition: background .15s, transform .15s;
+.menu-wrap {
+  position: relative;
   flex-shrink: 0;
 }
 
-.settings-btn:hover {
-  background: var(--surface2);
-  transform: rotate(30deg);
-}
-
-/* -- Daily puzzle button --------------------------------------------------- */
-
-.daily-stat {
-  background: none;
-  border: none;
-  padding: 0;
-  gap: .25rem;
-}
-
-.daily-btn {
+.menu-btn {
   position: relative;
   display: flex;
   align-items: center;
@@ -137,40 +109,102 @@
   height: 44px;
   min-width: 44px;
   min-height: 44px;
-  font-size: 1.1rem;
+  font-size: 1.2rem;
   background: var(--surface);
   border: 1px solid rgba(255,255,255,.07);
   border-radius: 8px;
   color: var(--text);
   cursor: pointer;
-  transition: background .15s, transform .15s;
+  transition: background .15s;
   flex-shrink: 0;
 }
 
-.daily-btn:hover {
+.menu-btn:hover {
   background: var(--surface2);
 }
 
-.daily-btn.active {
-  background: var(--accent2);
-  border-color: var(--accent2);
+.menu-btn-icon {
+  line-height: 1;
 }
 
-.daily-check {
+.menu-dot {
   position: absolute;
-  top: -4px;
-  right: -4px;
-  width: 16px;
-  height: 16px;
+  top: 6px;
+  right: 6px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 1px solid var(--surface);
+}
+
+.menu-dropdown {
+  position: absolute;
+  top: calc(100% + .5rem);
+  right: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  min-width: 200px;
+  background: var(--surface2);
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgba(0,0,0,.45);
+  overflow: hidden;
+}
+
+.menu-item {
   display: flex;
   align-items: center;
-  justify-content: center;
-  font-size: .65rem;
+  gap: .65rem;
+  width: 100%;
+  padding: .7rem .9rem;
+  background: none;
+  border: none;
+  border-radius: 0;
+  font-size: .9rem;
+  font-weight: 600;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  transition: background .15s;
+}
+
+.menu-item:hover {
+  background: rgba(255,255,255,.06);
+}
+
+.menu-item:disabled {
+  opacity: .4;
+  cursor: not-allowed;
+}
+
+.menu-item-icon {
+  font-size: 1.1rem;
+  line-height: 1;
+  width: 1.4rem;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.menu-item-label {
+  flex: 1;
+  min-width: 0;
+}
+
+.menu-item-badge {
+  font-size: .7rem;
   font-weight: 700;
+  color: var(--text-muted);
+  background: var(--surface);
+  padding: .15rem .5rem;
+  border-radius: 99px;
+  white-space: nowrap;
+}
+
+.menu-item-badge.done {
   background: var(--green);
   color: #0a0a0a;
-  border-radius: 50%;
-  line-height: 1;
 }
 
 .daily-badge {
@@ -181,58 +215,6 @@
   letter-spacing: .01em;
   background: var(--accent2);
   color: #fff;
-}
-
-/* -- Achievements button --------------------------------------------------- */
-
-.achievements-stat {
-  background: none;
-  border: none;
-  padding: 0;
-  gap: .25rem;
-}
-
-.achievements-btn {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  /* 44x44 is Apple's recommended minimum touch target. */
-  width: 44px;
-  height: 44px;
-  min-width: 44px;
-  min-height: 44px;
-  font-size: 1.1rem;
-  background: var(--surface);
-  border: 1px solid rgba(255,255,255,.07);
-  border-radius: 8px;
-  color: var(--text);
-  cursor: pointer;
-  transition: background .15s;
-  flex-shrink: 0;
-}
-
-.achievements-btn:hover {
-  background: var(--surface2);
-}
-
-.achievements-count {
-  position: absolute;
-  bottom: -4px;
-  right: -6px;
-  padding: 0 4px;
-  height: 15px;
-  min-width: 15px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: .6rem;
-  font-weight: 700;
-  background: var(--accent);
-  color: #fff;
-  border-radius: 99px;
-  line-height: 1;
-  white-space: nowrap;
 }
 
 .settings-panel {
@@ -742,13 +724,12 @@
   .stat-val { font-size: 1.05rem; }
   .stat-lbl { font-size: .58rem; }
 
-  .settings-btn,
-  .achievements-btn {
-    font-size: 1rem;
+  .menu-btn {
+    font-size: 1.05rem;
   }
 
-  .achievements-count {
-    font-size: .55rem;
+  .menu-dropdown {
+    min-width: 180px;
   }
 
   .theme-grid {
