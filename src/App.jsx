@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { Chess } from 'chess.js'
 import { Chessboard } from 'react-chessboard'
 import confetti from 'canvas-confetti'
@@ -6,6 +6,7 @@ import { loadPuzzles, getShuffledPuzzles, filterPuzzles } from './data/puzzles'
 import { boardThemes, getBoardTheme } from './data/boardThemes'
 import { puzzleThemeOptions } from './data/puzzleThemes'
 import { useSettings } from './useSettings'
+import { useStats } from './useStats'
 import { playCorrect, playWrong, playSolved } from './sounds'
 import './App.css'
 
@@ -39,8 +40,7 @@ export default function App() {
   // status: 'idle' | 'playing' | 'thinking' | 'wrong' | 'solved'
   const [msg,         setMsg]         = useState('')
   const [highlights,  setHighlights]  = useState({})
-  const [streak,      setStreak]      = useState(0)
-  const [totalSolved, setTotalSolved] = useState(0)
+  const { streak, totalSolved, setStreak, setTotalSolved, resetStats } = useStats()
   const [orientation, setOrientation] = useState('white')
   const [loadError,   setLoadError]   = useState(null)
   const [noMatch,     setNoMatch]     = useState(false)
@@ -49,12 +49,16 @@ export default function App() {
   const [hintLevel,   setHintLevel]   = useState(0)
   const [history,     setHistory]     = useState([])
   const [wrongFen,    setWrongFen]    = useState(null)
+  const [selectedSquare, setSelectedSquare] = useState(null)
+  const [legalTargets,   setLegalTargets]   = useState([])
+  const [boardWidth,  setBoardWidth]  = useState(480)
   const timerRef = useRef(null)
   const goNextRef = useRef(null)
   const retryRef = useRef(null)
   const hintRef = useRef(null)
   const undoRef = useRef(null)
   const hintUsedRef = useRef(false)
+  const boardWrapRef = useRef(null)
 
   // ── Load a puzzle ──────────────────────────────────────────────────────────
 
@@ -73,6 +77,8 @@ export default function App() {
     setHintLevel(0)
     setHistory([])
     setWrongFen(null)
+    setSelectedSquare(null)
+    setLegalTargets([])
     hintUsedRef.current = false
   }, [])
 
@@ -144,6 +150,32 @@ export default function App() {
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [status])
+
+  // ── Board sizing ──────────────────────────────────────────────────────────
+  // Track the rendered size of the board wrapper so react-chessboard always
+  // gets an explicit pixel width. This keeps square-hit-detection accurate
+  // across phones, tablets, desktops, and orientation changes.
+  useEffect(() => {
+    const el = boardWrapRef.current
+    if (!el) return
+
+    const updateWidth = () => {
+      const { width, height } = el.getBoundingClientRect()
+      const size = Math.floor(Math.min(width, height) || width)
+      if (size > 0) setBoardWidth(size)
+    }
+
+    updateWidth()
+
+    if (typeof ResizeObserver !== 'undefined') {
+      const observer = new ResizeObserver(updateWidth)
+      observer.observe(el)
+      return () => observer.disconnect()
+    }
+
+    window.addEventListener('resize', updateWidth)
+    return () => window.removeEventListener('resize', updateWidth)
+  }, [])
 
   // ── Navigation ────────────────────────────────────────────────────────────
 
@@ -218,8 +250,11 @@ export default function App() {
   }, [moveIdx, puzzle, settings.sound])
 
   // ── Move handler ──────────────────────────────────────────────────────────
+  // Shared by both input methods: drag-and-drop (onDrop) and click/tap-to-move
+  // (onSquareClick). Returns true if a move (correct or incorrect-but-legal)
+  // was made, false if the move was illegal or couldn't be attempted.
 
-  const onDrop = useCallback((from, to) => {
+  const attemptMove = useCallback((from, to) => {
     if (!game || !puzzle || (status !== 'playing' && status !== 'wrong')) return false
 
     const expected = puzzle.moves[moveIdx]
@@ -274,6 +309,78 @@ export default function App() {
     }
   }, [game, puzzle, moveIdx, status, settings.sound, commitCorrectMove])
 
+  // Drag-and-drop entry point.
+  const onDrop = useCallback((from, to) => {
+    const moved = attemptMove(from, to)
+    setSelectedSquare(null)
+    setLegalTargets([])
+    return moved
+  }, [attemptMove])
+
+  // Click/tap-to-move entry point. Works alongside drag-and-drop at all times.
+  const onSquareClick = useCallback((square) => {
+    if (!game || !puzzle || (status !== 'playing' && status !== 'wrong')) return
+
+    // A piece is already selected — try to move it to the clicked square.
+    if (selectedSquare) {
+      if (square === selectedSquare) {
+        setSelectedSquare(null)
+        setLegalTargets([])
+        return
+      }
+      if (legalTargets.includes(square)) {
+        attemptMove(selectedSquare, square)
+        setSelectedSquare(null)
+        setLegalTargets([])
+        return
+      }
+      // Clicking a different piece of the side to move re-selects it instead
+      // of just clearing the selection.
+      const piece = game.get(square)
+      if (piece && piece.color === game.turn()) {
+        const moves = game.moves({ square, verbose: true })
+        if (moves.length) {
+          setSelectedSquare(square)
+          setLegalTargets(moves.map(m => m.to))
+          return
+        }
+      }
+      setSelectedSquare(null)
+      setLegalTargets([])
+      return
+    }
+
+    // No selection yet — select the clicked square if it holds a piece that
+    // belongs to the side to move and has at least one legal move.
+    const piece = game.get(square)
+    if (!piece || piece.color !== game.turn()) return
+    const moves = game.moves({ square, verbose: true })
+    if (!moves.length) return
+    setSelectedSquare(square)
+    setLegalTargets(moves.map(m => m.to))
+  }, [game, puzzle, status, selectedSquare, legalTargets, attemptMove])
+
+  // Merge gameplay highlights (correct/wrong/hint flashes) with the
+  // click-to-move selection/legal-target highlights into one style object.
+  const squareStyles = useMemo(() => {
+    const styles = { ...highlights }
+    if (selectedSquare) {
+      styles[selectedSquare] = {
+        ...(styles[selectedSquare] || {}),
+        background: 'rgba(96,165,250,.45)',
+      }
+    }
+    for (const sq of legalTargets) {
+      styles[sq] = {
+        ...(styles[sq] || {}),
+        background: styles[sq]?.background
+          ? styles[sq].background
+          : 'radial-gradient(circle, rgba(96,165,250,.55) 22%, transparent 26%)',
+      }
+    }
+    return styles
+  }, [highlights, selectedSquare, legalTargets])
+
   // ── Hint ───────────────────────────────────────────────────────────────────
 
   const handleHint = useCallback(() => {
@@ -282,6 +389,11 @@ export default function App() {
     if (!expected) return
     const from = expected.slice(0, 2)
     const to = expected.slice(2, 4)
+
+    // A hint changes the highlighted squares, so clear any click-to-move
+    // selection to avoid stale highlights/targets.
+    setSelectedSquare(null)
+    setLegalTargets([])
 
     // Using a hint clears any "wrong move" feedback (and reverts the board
     // back to the real position) so the player can focus on the highlighted
@@ -331,8 +443,18 @@ export default function App() {
     setHighlights({})
     setHintLevel(0)
     setWrongFen(null)
+    setSelectedSquare(null)
+    setLegalTargets([])
     hintUsedRef.current = false
   }, [history, status])
+
+  // ── Reset stats ───────────────────────────────────────────────────────────
+
+  const handleResetStats = useCallback(() => {
+    if (window.confirm('Reset your streak and total solved count? This cannot be undone.')) {
+      resetStats()
+    }
+  }, [resetStats])
 
   goNextRef.current = goNext
   retryRef.current = retry
@@ -411,6 +533,16 @@ export default function App() {
       {/* ── Settings panel ── */}
       {settingsOpen && (
         <div className="settings-panel">
+          <div className="settings-panel-header">
+            <h2>Settings</h2>
+            <button
+              className="settings-close-btn"
+              aria-label="Close settings"
+              onClick={() => setSettingsOpen(false)}
+            >
+              ✕
+            </button>
+          </div>
           <label className="settings-row">
             <span>Wrong-move shake animation</span>
             <input
@@ -498,6 +630,13 @@ export default function App() {
             <p className="settings-hint">No themes selected = all themes</p>
           </div>
 
+          <div className="settings-section">
+            <div className="settings-section-title">Stats</div>
+            <button className="btn btn-danger" onClick={handleResetStats}>
+              Reset Stats
+            </button>
+          </div>
+
           <p className="settings-hint">
             Shortcuts: Enter/→ next · R retry · H hint · U undo · Esc close
           </p>
@@ -514,14 +653,19 @@ export default function App() {
       </div>
 
       {/* ── Board ── */}
-      <div className={`board-wrap${isWrong && settings.shake ? ' shake' : ''}${isSolved ? ' glow-green' : ''}`}>
+      <div
+        ref={boardWrapRef}
+        className={`board-wrap${isWrong && settings.shake ? ' shake' : ''}${isSolved ? ' glow-green' : ''}`}
+      >
         <Chessboard
           position={status === 'wrong' && wrongFen ? wrongFen : game.fen()}
           onPieceDrop={onDrop}
+          onSquareClick={onSquareClick}
           boardOrientation={orientation}
+          boardWidth={boardWidth}
           arePremovesAllowed={false}
           animationDuration={200}
-          customSquareStyles={highlights}
+          customSquareStyles={squareStyles}
           customBoardStyle={{
             borderRadius: '6px',
             boxShadow: '0 6px 32px rgba(0,0,0,.5)',

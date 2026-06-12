@@ -4,11 +4,19 @@
   width: 100%;
   max-width: 520px;
   margin: 0 auto;
-  padding: 1.25rem 1rem 2rem;
+  /* Base padding, bumped up by env(safe-area-inset-*) on devices with
+     notches/Dynamic Island/home indicators (iOS PWA + Safari). Using max()
+     means we never go below the comfortable base spacing on devices that
+     don't report a safe area (desktop, Android, etc.). */
+  padding-top: max(1.25rem, env(safe-area-inset-top));
+  padding-right: max(1rem, env(safe-area-inset-right));
+  padding-bottom: max(2rem, env(safe-area-inset-bottom));
+  padding-left: max(1rem, env(safe-area-inset-left));
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 1rem;
+  box-sizing: border-box;
 }
 
 .app-loading {
@@ -90,8 +98,11 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 38px;
-  height: 38px;
+  /* 44x44 is Apple's recommended minimum touch target. */
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
   font-size: 1.1rem;
   background: var(--surface);
   border: 1px solid rgba(255,255,255,.07);
@@ -116,6 +127,40 @@
   border: 1px solid rgba(255,255,255,.07);
   border-radius: var(--radius);
   padding: .9rem 1rem;
+  box-sizing: border-box;
+}
+
+.settings-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: .4rem;
+  border-bottom: 1px solid rgba(255,255,255,.06);
+}
+
+.settings-panel-header h2 {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.settings-close-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  font-size: 1.2rem;
+  line-height: 1;
+  background: var(--surface2);
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 8px;
+  color: var(--text);
+  cursor: pointer;
+  flex-shrink: 0;
 }
 
 .settings-row {
@@ -259,7 +304,14 @@
 .board-wrap {
   width: 100%;
   max-width: 480px;
+  aspect-ratio: 1 / 1;
   transition: box-shadow .3s;
+  /* Disable the browser's own pan/zoom gestures over the board so dragging
+     a piece never scrolls the page or triggers iOS's pull-to-refresh. */
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .board-wrap.glow-green {
@@ -393,7 +445,12 @@
 
 @media (max-width: 480px) {
   .app {
-    padding: .85rem .6rem 1.5rem;
+    /* Keep the safe-area-aware padding from the base rule, just with
+       smaller base values on narrow screens. */
+    padding-top: max(.85rem, env(safe-area-inset-top));
+    padding-right: max(.6rem, env(safe-area-inset-right));
+    padding-bottom: max(1.5rem, env(safe-area-inset-bottom));
+    padding-left: max(.6rem, env(safe-area-inset-left));
     gap: .75rem;
   }
 
@@ -408,8 +465,6 @@
   .stat-lbl { font-size: .58rem; }
 
   .settings-btn {
-    width: 34px;
-    height: 34px;
     font-size: 1rem;
   }
 
@@ -441,4 +496,30 @@
 
 @media (max-width: 360px) {
   .app-header h1 { display: none; }
+}
+
+/* Tablet and up: give the board and panel more breathing room. */
+@media (min-width: 700px) {
+  .app {
+    max-width: 640px;
+    gap: 1.25rem;
+  }
+
+  .board-wrap {
+    max-width: 560px;
+  }
+
+  .app-header h1 { font-size: 1.4rem; }
+  .brand-icon    { font-size: 2rem; }
+}
+
+/* Desktop and up: even more room, and a slightly wider settings panel. */
+@media (min-width: 1024px) {
+  .app {
+    max-width: 760px;
+  }
+
+  .board-wrap {
+    max-width: 640px;
+  }
 }

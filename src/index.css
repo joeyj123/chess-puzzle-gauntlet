@@ -19,16 +19,33 @@
   --font:       'Inter', system-ui, -apple-system, sans-serif;
 }
 
-html { font-size: 16px; }
+html {
+  font-size: 16px;
+  /* Prevent iOS Safari "bounce" overscroll from moving the whole page. */
+  overscroll-behavior-y: none;
+}
+
+html, body {
+  width: 100%;
+}
 
 body {
   font-family: var(--font);
   background: var(--bg);
   color: var(--text);
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   align-items: center;
   justify-content: center;
+  overscroll-behavior-y: none;
+  /* Remove the 300ms tap delay and disable double-tap-to-zoom on touch
+     devices so buttons/squares feel instant. */
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  /* Respect iOS safe areas (notch, Dynamic Island, home indicator) at the
+     outermost level so nothing is ever drawn under system gesture zones. */
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
 }
 
 a {
@@ -46,6 +63,8 @@ button {
   padding: .65rem 1.5rem;
   font-weight: 600;
   transition: transform .1s, opacity .15s;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 button:hover  { opacity: .88; }
 button:active { transform: scale(.97); }
