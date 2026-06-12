@@ -1,0 +1,18 @@
+# Files/dirs Claude should skip when exploring this project — large,
+# generated, or redundant and not needed for context.
+
+# Raw Lichess puzzle dump (1.1GB) — source data used once to build
+# public/puzzles.json. Not needed unless regenerating the puzzle set.
+lichess_db_puzzle.csv
+*.csv
+*.csv.zst
+
+# Dependencies / build output — regenerable via npm install / npm run build
+node_modules/
+dist/
+
+# Lockfile — large, machine-generated, rarely needs reading
+package-lock.json
+
+# VCS internals
+.git/

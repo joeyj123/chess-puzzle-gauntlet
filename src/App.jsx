@@ -552,18 +552,21 @@ export default function App() {
             <span className="stat-val">{totalSolved}</span>
             <span className="stat-lbl">solved</span>
           </div>
-          <button
-            className={`daily-btn${isDaily ? ' active' : ''}`}
-            aria-label={isDaily ? 'Back to regular puzzles' : "Daily puzzle"}
-            title={isDaily ? 'Back to regular puzzles' : "Today's puzzle"}
-            onClick={toggleDaily}
-            disabled={!dailyInfo}
-          >
-            📅
-            {dailyInfo && dailyCompleted[dailyInfo.dateStr] && (
-              <span className="daily-check">✓</span>
-            )}
-          </button>
+          <div className="stat daily-stat">
+            <button
+              className={`daily-btn${isDaily ? ' active' : ''}`}
+              aria-label={isDaily ? 'Back to regular puzzles' : "Daily puzzle"}
+              title={isDaily ? 'Back to regular puzzles' : "Today's puzzle"}
+              onClick={toggleDaily}
+              disabled={!dailyInfo}
+            >
+              📅
+              {dailyInfo && dailyCompleted[dailyInfo.dateStr] && (
+                <span className="daily-check">✓</span>
+              )}
+            </button>
+            <span className="stat-lbl">{isDaily ? 'exit' : 'daily'}</span>
+          </div>
           <button
             className="settings-btn"
             aria-label="Settings"
@@ -805,7 +808,7 @@ export default function App() {
         )}
 
         {!msg && status === 'playing' && (
-          <p className="feedback-msg instruction">Drag a piece to make your move</p>
+          <p className="feedback-msg instruction">Drag, or tap to pick &amp; place, a piece to make your move</p>
         )}
 
         {status === 'thinking' && !msg && (
@@ -816,6 +819,7 @@ export default function App() {
       {/* ── Footer ── */}
       <footer className="app-footer">
         Puzzles from{' '}
+
         <a href="https://lichess.org" target="_blank" rel="noreferrer">
           lichess.org
         </a>{' '}

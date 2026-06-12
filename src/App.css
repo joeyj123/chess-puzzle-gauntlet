@@ -120,6 +120,13 @@
 
 /* -- Daily puzzle button --------------------------------------------------- */
 
+.daily-stat {
+  background: none;
+  border: none;
+  padding: 0;
+  gap: .25rem;
+}
+
 .daily-btn {
   position: relative;
   display: flex;
