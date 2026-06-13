@@ -1,4 +1,4 @@
-const CACHE_NAME = 'puzzle-gauntlet-v2'
+const CACHE_NAME = 'puzzle-gauntlet-v3'
 const PRECACHE_URLS = [
   './',
   './index.html',

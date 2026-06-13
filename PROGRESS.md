@@ -9,160 +9,208 @@ Chess Puzzle Gauntlet — React + Vite PWA. Repo: github.com/joeyj123/chess-puzz
 
 ## Status
 - Tier 1 & 2 features done (see FEATURES.md "Done" section).
-- Tier 3: Achievements/badges done (commit `6a53d42`). Post-solve explanation
-  toggle AND adaptive difficulty done this session (NOT YET COMMITTED — see
-  below). Remaining Tier 3 items (expand puzzle set, Puzzle Rush, leaderboard,
-  shareable results) not started — see FEATURES.md for implementation notes.
-- CLAUDE.md is now tracked (added in `6a53d42`).
-- Mobile header consolidation + confetti fixes done, committed, and pushed
+- Tier 3: Achievements/badges done (commit `6a53d42`). Adaptive difficulty
+  done. Post-solve explanation toggle was replaced this session by an
+  "Explain" button (see below — no longer Tier 3, it's its own item now).
+  Remaining Tier 3 items (expand puzzle set, Puzzle Rush, leaderboard,
+  shareable results) not started — see FEATURES.md.
+- Mobile header consolidation + confetti fixes done, committed, pushed
   (commit `db9d88a`, 2026-06-12).
-- Mobile scale-to-fit + viewport tweak + post-solve explanation + adaptive
-  difficulty done this session (2026-06-12) — NOT YET COMMITTED, working
-  tree has uncommitted changes (see "Uncommitted changes" below).
-- Thorough debug pass completed (2026-06-12): full manual review of all
-  changed files (App.jsx, useFitToScreen.js, explanations.js, useSettings.js,
-  App.css, index.html) via the Read tool — hooks rules, JSX/CSS balance all
-  clean. Found and fixed one real bug (board double-scaling under `zoom`,
-  see item 1 below). Code is ready to commit; only remaining step is testing
-  on a real phone.
+- **This session (2026-06-12) — mobile mockup fixes, NOT YET COMMITTED.**
+  Implemented all 4 items from the user's mobile-screenshot requirements
+  list (mobile fit, Explain button, 3-strike logic, full-screen menu). This
+  also supersedes/replaces some of the *previous* session's uncommitted
+  work (the CSS-`zoom` scale-to-fit hack and the post-solve-explanation
+  toggle are both gone, replaced by better implementations below). Adaptive
+  difficulty from the previous session is unchanged and kept.
 
 ## Uncommitted changes (2026-06-12, this session)
-1. **Mobile scale-to-fit + viewport tweak** — addresses "edges cut off, no
-   way to zoom out" on phones.
-   - `index.html`: viewport meta no longer sets `maximum-scale=1.0,
-     user-scalable=no` — pinch-zoom is now available as a manual escape
-     hatch. Kept `width=device-width, initial-scale=1.0, viewport-fit=cover`.
-   - New `src/useFitToScreen.js`: `useFitToScreen(ref)` hook. On mount/
-     resize/orientationchange, resets `zoom` to 1, measures
-     `document.documentElement.scrollWidth` vs `window.innerWidth`, and if
-     content overflows horizontally, sets `el.style.zoom` to shrink just
-     enough to fit (clamped to a minimum of 0.7). No-ops on screens that
-     already fit (desktop/tablet untouched).
-   - `src/App.jsx`: added `appRef` ref + `useFitToScreen(appRef)`, attached
-     `ref={appRef}` to the root `.app` div.
-   - NOT YET TESTED IN AN ACTUAL BROWSER — sandbox bash build is broken (see
-     gotchas below), so this was verified by manual code review only. User
-     should test on a real phone (or Chrome device emulation) before
-     trusting it, especially: (b) `zoom` behaves in current mobile Safari/
-     Chrome, (c) pinch-zoom doesn't interfere with making moves on the
-     board.
-   - **Found + fixed during debug pass**: (a) board double-scaling. The
-     board-sizing `ResizeObserver` effect measures `boardWrapRef` via
-     `getBoundingClientRect()`, which returns the post-zoom *visual* size —
-     but that value was being passed straight to `<Chessboard
-     boardWidth={...}>` as a literal px, which would get scaled by `zoom`
-     *again* inside the same zoomed `.app` subtree (board rendering ~20-30%
-     smaller than its wrapper whenever `useFitToScreen` shrinks the page).
-     Fixed by dividing the measured size by `getComputedStyle(appRef.current
-     ).zoom` before calling `setBoardWidth`. Still not run in a real
-     browser — verify the board now fills its wrapper on a narrow phone.
 
-2. **Post-solve explanation toggle** (Tier 3 item, done).
-   - New `src/data/explanations.js`: `getExplanation(puzzle)` — builds a
-     1-2 sentence explanation from the puzzle's Lichess theme tags (mate-in-N
-     + tactic type, e.g. fork/pin/skewer/etc.), with a generic fallback.
-   - `src/useSettings.js`: added `showExplanations: false` default.
-   - `src/App.jsx`: imports `getExplanation`; new Settings row "Post-solve
-     explanation" checkbox; when solved and the setting is on, renders
-     `<p className="feedback-explanation">{getExplanation(puzzle)}</p>`
-     above the Next Puzzle button.
-   - `src/App.css`: new `.feedback-explanation` style (small muted centered
-     text).
+### 1. Mobile fit-without-scroll (replaces previous zoom-based approach)
+- `index.html`: viewport meta restored to
+  `width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover`
+  — pinch-zoom disabled again (the zoom-fit hack that needed it as an escape
+  hatch is gone).
+- `src/index.css`: `html, body` now `height: 100%; overflow: hidden`; `body`
+  uses `height: 100dvh` (was `min-height`).
+- `src/App.css`:
+  - `.app`: added `height: 100dvh; overflow: hidden`.
+  - `.board-wrap`: removed `aspect-ratio: 1/1`; now `flex: 1 1 0; min-height: 0`
+    so it consumes exactly the leftover vertical space after header/info/
+    controls/feedback/footer.
+- `src/App.jsx`:
+  - Removed `import { useFitToScreen } from './useFitToScreen'` and its usage
+    (`appRef` is still used, just for nothing zoom-related anymore).
+  - Board-sizing `useEffect` rewritten: measures `.board-wrap`'s
+    `getBoundingClientRect()` via `ResizeObserver` and sets
+    `boardWidth = Math.floor(Math.min(width, height))` — fits both axes, no
+    zoom math.
+- **`src/useFitToScreen.js` is now dead code** (unused, not deleted — left in
+  place; safe to delete in a future cleanup pass).
+- Not yet tested on a real phone — verify no scrollbar appears and the board
+  fills `.board-wrap` on a narrow screen.
 
-3. **Adaptive difficulty toggle** (Tier 3 item, done).
-   - `src/useSettings.js`: added `adaptiveDifficulty: false` default.
-   - `src/App.jsx`: new `adaptiveOffsetRef` (a ref, not state) — after each
-     solve, if `accuracy >= 85` adds +50, if `<= 55` adds -50, clamped to
-     ±250. `goNext()` then, if the toggle is on and the offset is non-zero,
-     searches the existing `queue` (forward from the normal "next" index,
-     wrapping) for the puzzle whose rating is closest to
-     `clamp(midpoint(ratingMin,ratingMax) + offset, ratingMin, ratingMax)`
-     and loads that instead of always `queue[qIdx+1]`.
-   - Deliberately does **not** touch `settings.ratingMin/ratingMax` or the
-     queue-rebuild effect — doing so would trigger an immediate
-     `loadPuzzle()` right when `totalSolved` increments (i.e. the instant a
-     puzzle is solved), wiping out the "solved" success message/confetti
-     before the user sees it. The ref + goNext approach avoids that
-     entirely.
-   - New Settings row "Adaptive difficulty" (off by default) with a
-     one-line explanation of the behavior.
-   - Same caveat as above: not run in a real browser, verified by code
-     review only.
+### 2. "Explain" button (replaces the post-solve explanation toggle)
+- `src/useSettings.js`: removed `showExplanations: false` default (toggle is
+  gone entirely).
+- `src/App.jsx`:
+  - New state: `explainText`, `replaying`, plus `explainTimerRef`.
+  - New `handleExplain` callback: replays the puzzle's full move sequence on
+    the board (highlighting each move), then sets `explainText` from
+    `getExplanation(puzzle)` and restores the previous status/msg/wrongFen.
+  - New "📖 Explain" button added to `.control-row`, next to Undo/Hint
+    (`disabled={!canExplain}`, where `canExplain = !!puzzle && !replaying &&
+    status !== 'thinking'`).
+  - Feedback area now renders `{explainText && <p className="feedback-explanation">{explainText}</p>}`
+    instead of the old `isSolved && settings.showExplanations` block.
+  - Removed the "Post-solve explanation" checkbox from Settings.
+  - `handleUndo`/`handleHint`/`attemptMove`/`onSquareClick` all gained
+    `!replaying` guards so nothing can be touched mid-replay.
+
+### 3. Three-strike logic + streak reset
+- New state: `wrongAttempts` (consecutive wrong tries on current puzzle),
+  reset to 0 in `loadPuzzle`, `commitCorrectMove`, and `handleUndo`.
+- `attemptMove`'s wrong-move branch increments `wrongAttempts`; on the 3rd
+  consecutive miss it sets a message and schedules `autoSolveRef.current?.()`
+  via `timerRef` (900ms delay).
+- New `autoSolve` callback (placed after `handleUndo`, ref-assigned via
+  `autoSolveRef.current = autoSolve`): resets `streak` to 0, then replays the
+  remaining solution moves one-by-one (amber highlights), and once done sets
+  `status = 'solved'` and auto-advances via `goNextRef.current?.()` after
+  1.8s.
+- Any new player action (`attemptMove`, `handleHint`) clears a pending
+  auto-solve timer first, so taking a hint/undo before the 3rd-strike timer
+  fires cancels the auto-reveal.
+
+### 4. Full-screen menu overhaul + consolidated stats
+- Header: removed the "✅ {totalSolved} solved" stat box — header now only
+  shows "🔥 {streak} streak" + the ☰ menu button.
+- New `puzzle-info` badge: `✅ {totalSolved}` added next to the rating badge
+  (the "puzzle count ticker" moved here from the header, per requirement).
+- Menu state simplified to `menuOpen` (bool) + `activePanel`
+  (`null | 'stats' | 'achievements' | 'settings'`). Removed the old
+  `settingsOpen`/`achievementsOpen`/`menuRef`/outside-click-to-close effect.
+- New `.menu-overlay` (`position: fixed; inset: 0; z-index: 200`) — a
+  full-screen overlay that completely covers the board and background when
+  `menuOpen` is true. Contains:
+  - top-level `.menu-list` (Today's Puzzle, Stats w/ `{totalSolved}` badge,
+    Achievements w/ x/y badge, Settings) when `activePanel === null`
+  - the **Stats** panel (moved out of Settings: Accuracy/Total solved/
+    Streak rows, breakdown toggle, Reset Stats button) when
+    `activePanel === 'stats'`
+  - the **Achievements** badge grid when `activePanel === 'achievements'`
+  - the **Settings** panel (shake/sound/board theme/difficulty range +
+    adaptive difficulty/theme grid/shortcuts hint — Stats section and
+    post-solve-explanation row both removed) when `activePanel === 'settings'`
+  - header row with title + back (←, only when a panel is active) + close (✕)
+- Closing the menu (`setMenuOpen(false)` + `setActivePanel(null)`) doesn't
+  touch any game/puzzle state, so the board returns exactly to how it was —
+  "seamless reset" is automatic since the overlay never modified game state.
+- Escape key behavior unchanged: closes the active panel first, then the menu
+  (existing keyboard effect already handled this).
+- `src/App.css`: removed `.menu-wrap`/`.menu-dropdown`; added
+  `.menu-overlay`/`.menu-overlay-header`/`.menu-overlay-actions`/`.menu-list`
+  (`.menu-item*`/`.menu-dot` reused as-is); added `.solved-badge`; removed
+  `margin-left: auto` from `.rating-badge` and moved it to `.solved-badge`
+  (now the last badge in `.puzzle-info`).
+- `.settings-panel-header` CSS class is now unused dead CSS (harmless,
+  left in place).
 
 ## New gotcha discovered this session
-- The sandbox bash mount serves a **stale/cached copy** of edited files —
-  after editing `index.html` and `src/App.jsx` via the file tools, the
-  sandbox bash view showed trailing null-byte padding / truncated content
-  that does NOT match the real files (confirmed correct via the Read tool,
-  948 lines for App.jsx vs sandbox's stale 942). `npx vite build` in the
-  sandbox fails on this stale copy — **this is a sandbox artifact, not a
-  real bug in the files**. Don't trust sandbox build failures without first
-  re-reading the file via the Read tool to confirm it matches what was
-  written. `git checkout -- index.html` in the sandbox also failed
-  ("Operation not permitted") — left as-is, harmless.
+- Sandbox `npx vite build` failed on `index.html` with a parse5 EOF error —
+  confirmed via `Read` + `cat -A` that the **real file is complete and
+  correct** (25 lines, properly closed `</html>`), but the sandbox bash mount
+  serves a truncated copy (cuts off mid-attribute at byte 1223 of a ~1223+
+  byte file). This is the same stale-mount issue as last session, now
+  affecting `index.html` too. **Don't trust sandbox build failures** — verify
+  the real file via `Read`/`cat -A` first.
+- Same stale-mount issue also hit `src/App.jsx` (sandbox mount stuck at 905
+  lines / 35011 bytes vs the real 1134-line file). Rewrote `index.html` in
+  the sandbox via a heredoc to unblock `npm run build` there, but did **not**
+  attempt the same for `App.jsx` (too large/risky to retype by hand) — all
+  `App.jsx` edits this session were done via the `Edit` tool against the real
+  file directly, unverified by a sandbox build. Double-check
+  `npm run build`/`npm run dev` locally after pulling.
 
-## Last completed feature (2026-06-12, commit `db9d88a`)
-Mobile header cleanup + confetti/achievement fixes, addressing: cramped
-mobile header (daily/achievements/settings buttons), confetti firing on app
-open, and confetti bursting off-center.
+## Session 2 (2026-06-12) — desktop overlap + PWA debug, NOT YET COMMITTED
+On top of session 1's uncommitted mobile-fit work above. User reported (with
+a screenshot of the desktop app): the Undo/Hint/Explain control row renders
+as a faded "ghost" overlay behind/on top of the bottom of the chessboard, and
+separately that the installed PWA was "way messed up" (board chopped off,
+scaling off, pieces draggable anywhere while dragging).
 
-New files:
-- `src/confetti.js` — `fireConfettiFromElement(el, options)`. Uses its own
-  full-viewport canvas (`confetti.create` with `position:fixed; inset:0`)
-  instead of canvas-confetti's default canvas (which sizes itself from
-  `document.documentElement.clientWidth/Height` and can drift off-center).
-  Origin x/y is computed from the target element's `getBoundingClientRect()`
-  relative to `window.innerWidth/innerHeight`.
+### Root cause 1 — board-sizing effect could get stuck at a stale size
+- `src/App.jsx`: the board-sizing `useEffect` measured `.board-wrap`'s own
+  `getBoundingClientRect()` for both width AND height. `.board-wrap` is
+  `flex: 1 1 0; min-height: 0` — when the other items (header, puzzle-info,
+  control-row, feedback-area, footer) don't all fit within `.app`'s height,
+  board-wrap's box can be squeezed to ~0px. The old code's `size > 0` guard
+  then *skipped* `setBoardWidth` entirely, leaving `boardWidth` at whatever
+  (often larger) value it last had. The Chessboard then rendered at that
+  stale size, overflowed the collapsed `.board-wrap` box (which had no
+  `overflow` rule), and — since `.control-row` etc. come later in the DOM —
+  painted underneath/behind the oversized board, producing the "ghost
+  buttons" look. The same stale/oversized board is the most likely cause of
+  the PWA's "chopped off"/"scaling way off"/drag-misalignment symptoms too.
+- **Fix**: rewrote the effect to compute the height budget as `.app`'s own
+  height minus the natural heights of every *other* flex child (skipping
+  `position: fixed` children like the achievement toast / menu overlay) and
+  their gaps — independent of `.board-wrap`'s own (possibly collapsed) box.
+  Width budget still comes from `.board-wrap`'s rect (cross-axis, not subject
+  to the collapse). `boardWidth` is now clamped to a `MIN_BOARD = 160`
+  floor and **always** set (never skipped). Added listeners for
+  `visualViewport.resize` (PWA chrome/keyboard changes) and
+  `document.fonts.ready` (late web-font reflow) in addition to
+  `resize`/`orientationchange`/`ResizeObserver`.
+- `src/App.css`: added `overflow: hidden` to `.board-wrap` as a containment
+  safety net, so even a momentarily-wrong `boardWidth` (e.g. first paint)
+  can't visually bleed into the controls/feedback area below.
 
-Modified files:
-- `src/App.jsx`:
-  - Header now shows streak + solved stats and a single ☰ menu button
-    (`.menu-wrap`/`.menu-btn`/`.menu-dropdown`/`.menu-item`). The dropdown
-    has 3 items: Today's Puzzle (daily toggle, ✓ badge when completed),
-    Achievements (x/y badge), Settings. Replaces the separate daily/
-    achievements/settings header buttons.
-  - Opening achievements or settings from the menu closes the other (mutually
-    exclusive panels). Menu closes on outside click/tap and Escape.
-  - Solve confetti now anchors to `boardWrapRef`; achievement-toast confetti
-    anchors to a new `toastRef` (fired via `requestAnimationFrame` so the
-    toast has a rect to measure).
-  - Replaced direct `canvas-confetti` import with `fireConfettiFromElement`
-    from `./confetti`.
-- `src/useStats.js` — achievement-check effect now skips the
-  toast/confetti celebration on the very first run after mount (backfills
-  `unlockedAchievements` silently for already-met achievements instead of
-  popping confetti immediately on app open). Added `isFirstCheckRef`.
-- `src/App.css` — removed `.settings-btn`, `.daily-stat/.daily-btn/
-  .daily-check`, `.achievements-stat/.achievements-btn/.achievements-count`;
-  added `.menu-wrap/.menu-btn/.menu-btn-icon/.menu-dot/.menu-dropdown/
-  .menu-item*` and updated the `max-width: 480px` breakpoint accordingly.
-  `.daily-badge` (used in the puzzle-info bar) kept as-is.
+### Root cause 2 — service worker caches dev modules, PWA runs stale code
+- `src/main.jsx`: `serviceWorker.register()` was unconditional, including in
+  `npm run dev`. The SW's stale-while-revalidate strategy then caches Vite's
+  dev module files (`/src/App.jsx`, `/src/App.css`, etc.) — an installed PWA
+  from an earlier dev session keeps serving those **old cached modules**
+  (pre-mobile-fit-rework layout, old zoom-based scaling hack, old drag setup)
+  even after the source changes, which is consistent with the PWA looking
+  dramatically different/worse than a plain browser tab on the same code.
+  **Fix**: only register the SW when `import.meta.env.PROD`.
+- `public/sw.js`: bumped `CACHE_NAME` from `puzzle-gauntlet-v2` to
+  `puzzle-gauntlet-v3` so any previously-installed PWA's old cache gets
+  invalidated on next load of a production build.
 
-Note on "does it save per user": there's no account system — stats/
-achievements persist via `localStorage` (`cpg-stats` key) per browser/device,
-same as before. Not cross-device.
-
-Note: build wasn't run via sandbox bash (stale mount issue, see gotchas) —
-verified via full manual Read instead, same as the previous session. User
-committed/pushed successfully (`db9d88a`), so treat as confirmed working
-unless an issue surfaces.
+### Not yet verified live
+Could not get a live browser/device session this round (computer-use access
+request to the user's machine timed out) — these fixes are based on careful
+code-level analysis, not an observed-then-fixed loop. **Please test**:
+- Desktop: resize the window short/narrow and confirm the control row no
+  longer overlaps/ghosts behind the board at any size.
+- PWA: uninstall/reinstall (or hard-refresh + unregister old SW via
+  devtools → Application → Service Workers) so it picks up the
+  prod-only-SW change, then re-test board sizing and drag behavior.
 
 ## Next steps
-- Code review/debug is done — commit/push (commands below), then test the
-  scale-to-fit + viewport changes (and the board-sizing fix) on a real phone:
-  confirm the board fills its wrapper with no gap and pinch-zoom doesn't
-  break making moves.
-- Remaining Tier 3 ideas (puzzle set expansion, Puzzle Rush, leaderboard,
-  shareable results) have implementation notes in FEATURES.md — pick one up
-  in a fresh chat. (Adaptive difficulty and post-solve explanation are done.)
-- If the user reports the confetti is still off-center or the mobile menu
-  has issues, re-check `src/confetti.js` and the `.menu-*` styles in
-  App.css/App.jsx added in `db9d88a`.
+1. Test the session 2 fixes (see "Not yet verified live" above) — desktop
+   resize behavior and PWA reinstall/board sizing/drag.
+2. Commit + push everything (session 1 + session 2 changes, commands below).
+3. Test on a real phone / Chrome device emulation:
+   - No vertical scrollbar, board fills available space on a narrow screen.
+   - Pinch-zoom is disabled (as intended).
+   - Explain button replays the solution and shows the explanation text.
+   - Trigger 3 wrong moves in a row on a puzzle → verify auto-solve replay,
+     streak resets to 0, and it auto-advances to the next puzzle.
+   - Open the ☰ menu → confirm it fully covers the board; check Stats,
+     Achievements, and Settings panels (back/close buttons, breakdown
+     toggle, Reset Stats); close the menu and confirm the board/puzzle state
+     is unchanged.
+4. Consider deleting the now-dead `src/useFitToScreen.js` in a cleanup pass.
+5. Remaining Tier 3 ideas (puzzle set expansion, Puzzle Rush, leaderboard,
+   shareable results) — pick up in a fresh chat, see FEATURES.md.
 
 ## Commit commands for this session's changes
 ```
 git add -A
-git commit -m "Mobile scale-to-fit + viewport tweak; post-solve explanation and adaptive difficulty toggles"
+git commit -m "Mobile fit rework, Explain button, 3-strike auto-solve, full-screen menu overhaul, board-sizing/PWA fixes"
 git push
 ```
 
@@ -177,16 +225,12 @@ git push
 - The sandbox shell (mcp__workspace__bash) has no GitHub credentials, so `git
   push` must be run by the user in their own terminal, not from here.
 - **Don't run `git reset`/index-modifying commands from the sandbox bash on
-  this project** — on 2026-06-12 a `git reset HEAD -- <path>` left a stale
-  `.git/index.lock` that couldn't be removed from the sandbox (permission
-  error on this mount) and produced a phantom `vite.config.js -> v` rename in
-  `git status`. The real commit/push had already succeeded beforehand. If you
-  see this again, ask the user to run in PowerShell:
-  ```
-  Remove-Item ".git\index.lock" -ErrorAction SilentlyContinue
-  git status
-  ```
-  Read-only git commands (status, log, diff) from the sandbox are fine.
+  this project** — previously caused a stale `.git/index.lock` that couldn't
+  be removed from the sandbox. Read-only git commands (status, log, diff) are
+  fine.
+- Sandbox bash file mounts can be **stale/truncated** for recently-edited
+  files (`index.html`, `App.jsx` both affected so far) — always verify via
+  `Read`/`cat -A` before trusting a sandbox build error.
 - `lichess_db_puzzle.csv` (1.1GB) is the raw source data used to generate
   `public/puzzles.json` — already gitignored, see `.claudeignore`.
 

@@ -620,6 +620,12 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  /* Safety net: if `boardWidth` is ever briefly larger than this box (e.g.
+     the very first paint before App.jsx's sizing effect runs, or a momentary
+     mismatch during a resize), clip it instead of letting it visually bleed
+     into the controls/feedback area below (the "ghost buttons behind the
+     board" bug). */
+  overflow: hidden;
   transition: box-shadow .3s;
   /* Disable the browser's own pan/zoom gestures over the board so dragging
      a piece never scrolls the page or triggers iOS's pull-to-refresh. */

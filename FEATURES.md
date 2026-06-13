@@ -61,13 +61,25 @@ implementing items from a tier. Items move to "Done" once shipped.
       single ☰ menu dropdown; fixed confetti popping on app open (achievement
       backfill no longer celebrates) and confetti origin being off-center
       (now anchored to the board / toast via getBoundingClientRect)
-- [x] Mobile "scale to fit" — auto-shrinks the app via CSS `zoom` when content
-      would overflow the viewport width, so nothing gets clipped on narrow
-      phones. Viewport meta now allows pinch-zoom as a manual escape hatch.
-- [x] Post-solve explanation of the line / why it works (optional toggle in
-      ⚙ settings, off by default)
 - [x] Adaptive difficulty (optional toggle in ⚙ settings, off by default).
       Tracks a performance-based offset (±50 per solve based on overall
       accuracy, clamped ±250) and "Next Puzzle" leans toward the harder/
       easier end of the selected rating range accordingly. Does not change
       the range itself or rebuild the queue.
+- [x] Mobile fit-without-scroll (2026-06-12) — pure flexbox layout
+      (`.app` is `height:100dvh; overflow:hidden`, `.board-wrap` is
+      `flex:1 1 0; min-height:0`), board measured via ResizeObserver and
+      sized to fit both width and height. Replaces the earlier CSS-`zoom`
+      scale-to-fit hack. Pinch-zoom disabled again (no longer needed).
+- [x] "Explain" button (2026-06-12) — replaces the old post-solve
+      explanation toggle. Sits next to Undo/Hint; replays the puzzle's
+      solution move-by-move on the board, then shows why it works
+      (`getExplanation`).
+- [x] Three-strike rule (2026-06-12) — 3 consecutive wrong moves on the same
+      puzzle auto-replays the solution, resets the current streak to 0, and
+      auto-advances to the next puzzle.
+- [x] Full-screen menu overhaul (2026-06-12) — ☰ menu now opens a full-screen
+      overlay (covers the board entirely) with a top-level list (Today's
+      Puzzle, Stats, Achievements, Settings). Stats moved into its own panel
+      (Accuracy/Total solved/Streak/breakdown/Reset Stats). The "✅ solved"
+      counter moved from the header into the puzzle-info bar.

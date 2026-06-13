@@ -214,34 +214,85 @@ export default function App() {
   }, [status, menuOpen, activePanel])
 
   // ── Board sizing ──────────────────────────────────────────────────────────
-  // Track the rendered size of the board wrapper so react-chessboard always
-  // gets an explicit pixel width. `.board-wrap` is a flex item with
-  // `flex: 1 1 0; min-height: 0`, so it naturally shrinks/grows to fill
-  // whatever vertical space is left after the header, puzzle info, controls,
-  // and feedback area take their natural height. Sizing the board to
-  // min(wrapper width, wrapper height) means it always fits both dimensions —
-  // the whole app fits in one viewport height with no scrolling, across
-  // phones, tablets, desktops, and orientation changes.
+  // Track the available space for the board so react-chessboard always gets
+  // an explicit pixel width. `.board-wrap` is a flex item with
+  // `flex: 1 1 0; min-height: 0`, so when the other items (header, puzzle
+  // info, controls, feedback area, footer) don't all fit within `.app`'s
+  // height, board-wrap's own box can be squeezed all the way down to 0px.
+  //
+  // The old version measured `.board-wrap`'s own rect for BOTH dimensions —
+  // if that rect's height collapsed to 0, `size` came out as 0 and the
+  // `size > 0` guard skipped the update entirely, leaving `boardWidth` stuck
+  // at a stale (often much larger) value. The Chessboard then rendered at
+  // that stale size, overflowed `.board-wrap`'s collapsed box, and visually
+  // bled into the controls/feedback area below it (the "ghost buttons behind
+  // the board" bug), and on small/PWA viewports made the board look chopped
+  // off or scaled wrong.
+  //
+  // To avoid that feedback loop, the height budget is computed directly:
+  // `.app`'s own height minus the natural height of every OTHER flex child
+  // (header/puzzle-info/controls/feedback/footer) and the gaps between them.
+  // That number doesn't depend on board-wrap's (possibly collapsed) box, so
+  // it can't get stuck. The width budget comes from `.board-wrap`'s own rect,
+  // which isn't subject to this collapse since width is the cross axis.
   useEffect(() => {
-    const el = boardWrapRef.current
-    if (!el) return
+    const appEl = appRef.current
+    const wrapEl = boardWrapRef.current
+    if (!appEl || !wrapEl) return
+
+    // Never let the board shrink below this — keeps it playable (and keeps
+    // boardWidth from ever being set to 0/negative) even if the viewport is
+    // too cramped for everything to fit without any clipping.
+    const MIN_BOARD = 160
 
     const updateWidth = () => {
-      const { width, height } = el.getBoundingClientRect()
-      const size = Math.floor(Math.min(width, height))
-      if (size > 0) setBoardWidth(size)
+      const appRect = appEl.getBoundingClientRect()
+      const appStyle = getComputedStyle(appEl)
+
+      let othersHeight = 0
+      let count = 0
+      for (const child of appEl.children) {
+        if (child === wrapEl) continue
+        // Achievement toast / full-screen menu overlay are `position: fixed`
+        // and don't participate in `.app`'s flex layout — skip them.
+        if (getComputedStyle(child).position === 'fixed') continue
+        othersHeight += child.getBoundingClientRect().height
+        count++
+      }
+
+      const gapPx = parseFloat(appStyle.rowGap || appStyle.gap) || 0
+      const paddingY = parseFloat(appStyle.paddingTop) + parseFloat(appStyle.paddingBottom)
+
+      const availableHeight = appRect.height - paddingY - othersHeight - gapPx * count
+      const availableWidth = wrapEl.getBoundingClientRect().width
+
+      const size = Math.floor(Math.min(availableWidth, availableHeight))
+      setBoardWidth(Math.max(MIN_BOARD, size))
     }
 
     updateWidth()
 
-    if (typeof ResizeObserver !== 'undefined') {
-      const observer = new ResizeObserver(updateWidth)
-      observer.observe(el)
-      return () => observer.disconnect()
-    }
+    const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(updateWidth) : null
+    observer?.observe(appEl)
+    observer?.observe(wrapEl)
 
+    // `resize`/`orientationchange` cover desktop window resizing and mobile
+    // rotation. `visualViewport.resize` additionally catches cases (common
+    // in installed/standalone PWAs) where the on-screen keyboard, browser
+    // chrome, or PWA title bar changes the visible viewport without firing a
+    // plain `window.resize`. `document.fonts.ready` catches the late reflow
+    // once the web font swaps in, which can shift the other items' heights.
     window.addEventListener('resize', updateWidth)
-    return () => window.removeEventListener('resize', updateWidth)
+    window.addEventListener('orientationchange', updateWidth)
+    window.visualViewport?.addEventListener('resize', updateWidth)
+    document.fonts?.ready?.then(updateWidth).catch(() => {})
+
+    return () => {
+      observer?.disconnect()
+      window.removeEventListener('resize', updateWidth)
+      window.removeEventListener('orientationchange', updateWidth)
+      window.visualViewport?.removeEventListener('resize', updateWidth)
+    }
   }, [])
 
 
