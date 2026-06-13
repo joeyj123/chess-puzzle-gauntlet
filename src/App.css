@@ -615,7 +615,11 @@
      size that fits both the available width AND height, so nothing ever
      overflows and the page never needs to scroll. */
   flex: 1 1 0;
-  min-height: 0;
+  /* Floor matches the JS `MIN_BOARD` constant in App.jsx — guarantees this
+     box's rendered height is never 0, so the board-sizing effect always has
+     a real, non-zero rect to measure (and the board itself is never fully
+     clipped by `overflow: hidden` below). */
+  min-height: 160px;
   min-width: 0;
   display: flex;
   align-items: center;

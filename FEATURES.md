@@ -83,3 +83,16 @@ implementing items from a tier. Items move to "Done" once shipped.
       Puzzle, Stats, Achievements, Settings). Stats moved into its own panel
       (Accuracy/Total solved/Streak/breakdown/Reset Stats). The "✅ solved"
       counter moved from the header into the puzzle-info bar.
+- [x] Board-sizing rewrite (2026-06-12, finalized after 3 iterations) —
+      board-sizing effect now measures `.board-wrap`'s own
+      `getBoundingClientRect()` directly (ground truth, since flex layout
+      determines that box's size independent of the Chessboard child) and
+      always sets `boardWidth = max(MIN_BOARD, min(width, height))`, clamped
+      to a 160px floor (`MIN_BOARD`, also enforced via CSS `min-height` on
+      `.board-wrap`). `overflow: hidden` on `.board-wrap` remains as a
+      containment safety net. Fixes both the "ghost buttons behind the
+      board" overlap and the "ranks 1/8 chopped off" cropping.
+- [x] PWA stale-cache fix (2026-06-12) — service worker now only registers in
+      production builds (`import.meta.env.PROD`), so `npm run dev` no longer
+      caches dev modules into an installed PWA. Bumped SW cache name to
+      `puzzle-gauntlet-v3` to invalidate old installs.

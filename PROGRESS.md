@@ -16,13 +16,19 @@ Chess Puzzle Gauntlet — React + Vite PWA. Repo: github.com/joeyj123/chess-puzz
   shareable results) not started — see FEATURES.md.
 - Mobile header consolidation + confetti fixes done, committed, pushed
   (commit `db9d88a`, 2026-06-12).
-- **This session (2026-06-12) — mobile mockup fixes, NOT YET COMMITTED.**
+- **2026-06-12 — mobile mockup fixes + desktop/PWA debug, NOT YET COMMITTED.**
   Implemented all 4 items from the user's mobile-screenshot requirements
   list (mobile fit, Explain button, 3-strike logic, full-screen menu). This
   also supersedes/replaces some of the *previous* session's uncommitted
   work (the CSS-`zoom` scale-to-fit hack and the post-solve-explanation
   toggle are both gone, replaced by better implementations below). Adaptive
   difficulty from the previous session is unchanged and kept.
+  Same day, a follow-up session fixed two more bugs (desktop "ghost button"
+  overlap behind the board, and a "way messed up" installed PWA) — see
+  "Session 2" below. **None of this is committed yet, and the session 2
+  fixes have not been verified live** (no live browser access was available;
+  fixes are code-analysis only). Next chat should start by testing both
+  rounds of changes per the checklists below, then commit/push.
 
 ## Uncommitted changes (2026-06-12, this session)
 
@@ -188,6 +194,70 @@ code-level analysis, not an observed-then-fixed loop. **Please test**:
 - PWA: uninstall/reinstall (or hard-refresh + unregister old SW via
   devtools → Application → Service Workers) so it picks up the
   prod-only-SW change, then re-test board sizing and drag behavior.
+
+## Session 3 (2026-06-12) — board-sizing rewritten from scratch, NOT YET COMMITTED
+User tested live (Session 2's fix): Explain button works great, but ranks 1
+and 8 are both chopped off — board rendered taller than `.board-wrap`,
+centered + clipped by `overflow: hidden`, so the crop is symmetric top/bottom.
+PWA also still "screwey" (not yet narrowed down further — see below).
+
+First attempt this session was a `[boardWidth]`-deps effect that shrank the
+board if `.app` overflowed. **That was wrong and user reported it didn't
+help**: `.board-wrap` is `flex: 1 1 0; min-height: 0` with `overflow:
+hidden`, so its box size is fixed by the flex layout and does **not** grow to
+fit an oversized Chessboard child — `.app` never overflows even when the
+board is visibly clipped *inside* `.board-wrap`. Checking `.app`'s overflow
+could never detect this. Reverted that approach.
+
+### Real fix — measure `.board-wrap` directly, always
+- `src/App.jsx`: board-sizing effect rewritten again, this time to just
+  measure `boardWrapRef.current.getBoundingClientRect()` (width AND height)
+  and set `boardWidth = max(MIN_BOARD, floor(min(width, height)))`. This is
+  the *ground truth* — `.board-wrap`'s box size is determined entirely by the
+  flex layout around it (independent of `boardWidth`), so there's nothing to
+  estimate or get out of sync.
+  - `MIN_BOARD = 160` is now a module-level constant (was local to the old
+    effect).
+  - Unlike the very first version of this effect (pre-session-2), there is
+    **no `size > 0` skip-guard** — `setBoardWidth` is always called, clamped
+    to `MIN_BOARD`. Combined with the CSS floor below, the rect can never
+    legitimately be 0, so this can't get "stuck" the way the original
+    "ghost buttons" bug happened.
+  - `ResizeObserver` now observes `.board-wrap` itself (not `.app`) — it
+    fires whenever `.board-wrap`'s box changes for *any* reason (sibling
+    height changes from badge-wrapping, window resize, font reflow, etc.),
+    so the measurement is continuously re-validated against reality instead
+    of being computed once from an estimate.
+- `src/App.css`: `.board-wrap` gets `min-height: 160px` (matches
+  `MIN_BOARD`) so its rect can never collapse to 0 and fully hide the board.
+- Net effect: removed ~70 lines of height-budget/subtraction math and the
+  scrollHeight-overflow safety-net effect; replaced with one small effect
+  that measures the one element that actually matters.
+
+### PWA "screwey" — not yet diagnosed
+User said the installed/PWA view is "still screwey" but didn't specify how.
+Likely candidates, **not yet investigated**:
+- If they're testing the installed PWA, it's running whatever was last
+  *built* (`npm run build`), which doesn't include ANY of this session's (or
+  session 1/2's) source changes yet — only `npm run dev` reflects current
+  source. Worth confirming what the user is actually looking at (dev server
+  tab vs. installed PWA vs. a deployed URL) before chasing PWA-specific bugs.
+- `vite.config.js` has `build: { emptyOutDir: false }` — old hashed
+  JS/CSS chunks from previous builds are never removed from the output dir.
+  Shouldn't normally cause staleness (index.html always points at the new
+  hashes) but worth keeping in mind if the PWA serves something unexpected.
+- SW (`public/sw.js`) already calls `skipWaiting()` + `clients.claim()` and
+  is on `puzzle-gauntlet-v3`, so it should take over on next load without a
+  manual unregister — if it's still not updating, check
+  devtools → Application → Service Workers on the actual PWA.
+
+### Not yet tested live
+Chrome extension was not reachable this session (could not get a live
+browser check). **Please test in a normal browser tab first** (simplest
+case): confirm ranks 1 and 8 are fully visible at various window sizes
+(including the short/narrow case from session 2's "ghost buttons" bug), then
+report back exactly what's still wrong with the PWA (screenshot + what device/
+how it's installed) so that can be investigated specifically next.
 
 ## Next steps
 1. Test the session 2 fixes (see "Not yet verified live" above) — desktop
