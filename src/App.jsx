@@ -9,7 +9,6 @@ import { useSettings } from './useSettings'
 import { useStats, RATING_BANDS } from './useStats'
 import { achievements } from './data/achievements'
 import { playCorrect, playWrong, playSolved, playAchievement } from './sounds'
-import { useFitToScreen } from './useFitToScreen'
 import { getExplanation } from './data/explanations'
 import './App.css'
 
@@ -52,7 +51,6 @@ export default function App() {
   const [loadError,   setLoadError]   = useState(null)
   const [noMatch,     setNoMatch]     = useState(false)
   const [settings,    updateSettings] = useSettings()
-  const [settingsOpen, setSettingsOpen] = useState(false)
   const [hintLevel,   setHintLevel]   = useState(0)
   const [history,     setHistory]     = useState([])
   const [wrongFen,    setWrongFen]    = useState(null)
@@ -62,25 +60,34 @@ export default function App() {
   const [dailyInfo,   setDailyInfo]   = useState(null) // { puzzle, dateStr }
   const [isDaily,     setIsDaily]     = useState(false)
   const [showBreakdown, setShowBreakdown] = useState(false)
-  const [achievementsOpen, setAchievementsOpen] = useState(false)
+  // Full-screen menu overlay. `activePanel` is null while the top-level menu
+  // list is showing, or 'stats' | 'achievements' | 'settings' once one of
+  // those is opened from the list.
   const [menuOpen, setMenuOpen] = useState(false)
+  const [activePanel, setActivePanel] = useState(null)
+  // Post-solve "Explain" replay: shows the puzzle's full move sequence on the
+  // board, then a short text explanation of why it works.
+  const [explainText, setExplainText] = useState('')
+  const [replaying,   setReplaying]   = useState(false)
+  // Consecutive wrong attempts on the current puzzle (three-strike rule).
+  const [wrongAttempts, setWrongAttempts] = useState(0)
   const timerRef = useRef(null)
+  const explainTimerRef = useRef(null)
   const goNextRef = useRef(null)
   const retryRef = useRef(null)
   const hintRef = useRef(null)
   const undoRef = useRef(null)
+  const autoSolveRef = useRef(null)
   const hintUsedRef = useRef(false)
   const boardWrapRef = useRef(null)
   const toastRef = useRef(null)
-  const menuRef = useRef(null)
   const appRef = useRef(null)
-
-  useFitToScreen(appRef)
 
   // ── Load a puzzle ──────────────────────────────────────────────────────────
 
   const loadPuzzle = useCallback((p) => {
     if (timerRef.current) clearTimeout(timerRef.current)
+    if (explainTimerRef.current) clearTimeout(explainTimerRef.current)
     const chess = new Chess(p.fen)
     const setupMove = uciToObj(p.moves[0])
     chess.move(setupMove)
@@ -96,6 +103,9 @@ export default function App() {
     setWrongFen(null)
     setSelectedSquare(null)
     setLegalTargets([])
+    setExplainText('')
+    setReplaying(false)
+    setWrongAttempts(0)
     hintUsedRef.current = false
   }, [])
 
@@ -112,6 +122,7 @@ export default function App() {
     return () => {
       cancelled = true
       if (timerRef.current) clearTimeout(timerRef.current)
+      if (explainTimerRef.current) clearTimeout(explainTimerRef.current)
     }
   }, [])
 
@@ -171,11 +182,15 @@ export default function App() {
   useEffect(() => {
     function onKeyDown(e) {
       if (e.key === 'Escape') {
-        setSettingsOpen(false)
-        setAchievementsOpen(false)
-        setMenuOpen(false)
+        if (activePanel) {
+          setActivePanel(null)
+        } else {
+          setMenuOpen(false)
+        }
         return
       }
+      // While the full-screen menu is open, don't let game shortcuts fire.
+      if (menuOpen) return
       // Avoid hijacking keys while typing in a form control
       if (e.target instanceof HTMLElement && ['INPUT', 'SELECT', 'TEXTAREA'].includes(e.target.tagName)) {
         return
@@ -196,30 +211,25 @@ export default function App() {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [status])
+  }, [status, menuOpen, activePanel])
 
   // ── Board sizing ──────────────────────────────────────────────────────────
   // Track the rendered size of the board wrapper so react-chessboard always
-  // gets an explicit pixel width. This keeps square-hit-detection accurate
-  // across phones, tablets, desktops, and orientation changes.
+  // gets an explicit pixel width. `.board-wrap` is a flex item with
+  // `flex: 1 1 0; min-height: 0`, so it naturally shrinks/grows to fill
+  // whatever vertical space is left after the header, puzzle info, controls,
+  // and feedback area take their natural height. Sizing the board to
+  // min(wrapper width, wrapper height) means it always fits both dimensions —
+  // the whole app fits in one viewport height with no scrolling, across
+  // phones, tablets, desktops, and orientation changes.
   useEffect(() => {
     const el = boardWrapRef.current
     if (!el) return
 
     const updateWidth = () => {
       const { width, height } = el.getBoundingClientRect()
-      const size = Math.floor(Math.min(width, height) || width)
-      if (size > 0) {
-        // getBoundingClientRect() returns the post-zoom (visual) size, but
-        // react-chessboard's `boardWidth` prop becomes a literal CSS px
-        // value *inside* the same zoomed subtree (useFitToScreen applies
-        // `zoom` to the app root), which would otherwise get scaled by
-        // `zoom` a second time. Divide it back out so the rendered board
-        // matches the wrapper's actual visual size 1:1.
-        const zoomEl = appRef.current
-        const zoom = zoomEl ? parseFloat(getComputedStyle(zoomEl).zoom) || 1 : 1
-        setBoardWidth(Math.floor(size / zoom))
-      }
+      const size = Math.floor(Math.min(width, height))
+      if (size > 0) setBoardWidth(size)
     }
 
     updateWidth()
@@ -234,22 +244,6 @@ export default function App() {
     return () => window.removeEventListener('resize', updateWidth)
   }, [])
 
-  // ── Header menu (Daily/Achievements/Settings) ────────────────────────────
-  // Close the dropdown when tapping/clicking anywhere outside of it.
-  useEffect(() => {
-    if (!menuOpen) return
-    function onPointerDown(e) {
-      if (menuRef.current && !menuRef.current.contains(e.target)) {
-        setMenuOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', onPointerDown)
-    document.addEventListener('touchstart', onPointerDown)
-    return () => {
-      document.removeEventListener('mousedown', onPointerDown)
-      document.removeEventListener('touchstart', onPointerDown)
-    }
-  }, [menuOpen])
 
   // ── Achievement toasts ────────────────────────────────────────────────────
   // Show newly-unlocked achievements one at a time, auto-dismissing each
@@ -331,6 +325,8 @@ export default function App() {
       [result.from]: { background: 'rgba(34,197,94,.45)' },
       [result.to]:   { background: 'rgba(34,197,94,.45)' },
     })
+    setExplainText('')
+    setWrongAttempts(0)
 
     const hasComputerResponse = moveIdx + 1 < puzzle.moves.length
 
@@ -390,10 +386,14 @@ export default function App() {
   // was made, false if the move was illegal or couldn't be attempted.
 
   const attemptMove = useCallback((from, to) => {
-    if (!game || !puzzle || (status !== 'playing' && status !== 'wrong')) return false
+    if (!game || !puzzle || replaying || (status !== 'playing' && status !== 'wrong')) return false
 
     const expected = puzzle.moves[moveIdx]
     if (!expected) return false
+
+    // Clear any pending auto-solve (three-strike) timer — the player is
+    // making a new attempt, so let that play out instead.
+    if (timerRef.current) clearTimeout(timerRef.current)
 
     // Attempt the move in chess.js (validates legality)
     const copy = new Chess(game.fen())
@@ -433,7 +433,6 @@ export default function App() {
       // player chooses what to do next: use a hint, undo, or restart. Nothing
       // auto-clears or auto-resets.
       setStatus('wrong')
-      setMsg('Not quite — try again!')
       setWrongFen(copy.fen())
       setHighlights({
         [from]: { background: 'rgba(220,38,38,.45)' },
@@ -442,9 +441,21 @@ export default function App() {
       if (settings.sound) playWrong()
       recordMove(false)
       setHistory(h => (h.length && h[h.length - 1].wasWrong ? h : [...h, { fen: game.fen(), moveIdx, wasWrong: true }]))
+      setExplainText('')
+
+      // Three-strike rule: 3 consecutive wrong attempts on this puzzle
+      // auto-reveals the solution, resets the streak, and moves on.
+      const nextWrongAttempts = wrongAttempts + 1
+      setWrongAttempts(nextWrongAttempts)
+      if (nextWrongAttempts >= 3) {
+        setMsg(`Not quite — that's 3 wrong tries, here's the answer…`)
+        timerRef.current = setTimeout(() => autoSolveRef.current?.(), 900)
+      } else {
+        setMsg('Not quite — try again!')
+      }
       return true
     }
-  }, [game, puzzle, moveIdx, status, settings.sound, commitCorrectMove, recordMove])
+  }, [game, puzzle, moveIdx, status, replaying, settings.sound, commitCorrectMove, recordMove, wrongAttempts])
 
   // Drag-and-drop entry point.
   const onDrop = useCallback((from, to) => {
@@ -456,7 +467,7 @@ export default function App() {
 
   // Click/tap-to-move entry point. Works alongside drag-and-drop at all times.
   const onSquareClick = useCallback((square) => {
-    if (!game || !puzzle || (status !== 'playing' && status !== 'wrong')) return
+    if (!game || !puzzle || replaying || (status !== 'playing' && status !== 'wrong')) return
 
     // A piece is already selected — try to move it to the clicked square.
     if (selectedSquare) {
@@ -495,7 +506,7 @@ export default function App() {
     if (!moves.length) return
     setSelectedSquare(square)
     setLegalTargets(moves.map(m => m.to))
-  }, [game, puzzle, status, selectedSquare, legalTargets, attemptMove])
+  }, [game, puzzle, status, replaying, selectedSquare, legalTargets, attemptMove])
 
   // Merge gameplay highlights (correct/wrong/hint flashes) with the
   // click-to-move selection/legal-target highlights into one style object.
@@ -521,11 +532,15 @@ export default function App() {
   // ── Hint ───────────────────────────────────────────────────────────────────
 
   const handleHint = useCallback(() => {
-    if (!game || !puzzle || (status !== 'playing' && status !== 'wrong')) return
+    if (!game || !puzzle || replaying || (status !== 'playing' && status !== 'wrong')) return
     const expected = puzzle.moves[moveIdx]
     if (!expected) return
     const from = expected.slice(0, 2)
     const to = expected.slice(2, 4)
+
+    // Clear any pending auto-solve (three-strike) timer — the player is
+    // taking a hint instead of letting the strike limit play out.
+    if (timerRef.current) clearTimeout(timerRef.current)
 
     // A hint changes the highlighted squares, so clear any click-to-move
     // selection to avoid stale highlights/targets.
@@ -560,12 +575,61 @@ export default function App() {
       setHistory(h => [...h, { fen: game.fen(), moveIdx }])
       commitCorrectMove(copy, result, { viaHint: true })
     }
-  }, [game, puzzle, moveIdx, status, hintLevel, commitCorrectMove])
+  }, [game, puzzle, moveIdx, status, replaying, hintLevel, commitCorrectMove])
+
+  // ── Explain (replay solution + show why it works) ─────────────────────────
+
+  const handleExplain = useCallback(() => {
+    if (!puzzle || !game || replaying || status === 'thinking') return
+    if (timerRef.current) clearTimeout(timerRef.current)
+    if (explainTimerRef.current) clearTimeout(explainTimerRef.current)
+
+    const prevStatus = status
+    const prevMsg = msg
+    const prevWrongFen = wrongFen
+    const finalFen = game.fen()
+
+    setSelectedSquare(null)
+    setLegalTargets([])
+    setReplaying(true)
+    setExplainText('')
+    setStatus('thinking')
+    setMsg('Replaying the line…')
+    setWrongFen(null)
+
+    const chess = new Chess(puzzle.fen)
+    setGame(new Chess(chess.fen()))
+    setHighlights({})
+
+    let i = 0
+    const step = () => {
+      if (i >= puzzle.moves.length) {
+        setGame(new Chess(finalFen))
+        setStatus(prevStatus)
+        setMsg(prevMsg)
+        setWrongFen(prevWrongFen)
+        setExplainText(getExplanation(puzzle))
+        setReplaying(false)
+        return
+      }
+      const mv = chess.move(uciToObj(puzzle.moves[i]))
+      setGame(new Chess(chess.fen()))
+      if (mv) {
+        setHighlights({
+          [mv.from]: { background: 'rgba(96,165,250,.45)' },
+          [mv.to]:   { background: 'rgba(96,165,250,.45)' },
+        })
+      }
+      i++
+      explainTimerRef.current = setTimeout(step, 650)
+    }
+    explainTimerRef.current = setTimeout(step, 500)
+  }, [puzzle, game, replaying, status, msg, wrongFen])
 
   // ── Undo ───────────────────────────────────────────────────────────────────
 
   const handleUndo = useCallback(() => {
-    if (history.length === 0 || status === 'thinking') return
+    if (history.length === 0 || status === 'thinking' || replaying) return
     const last = history[history.length - 1]
     if (timerRef.current) clearTimeout(timerRef.current)
     if (status === 'solved') {
@@ -582,8 +646,52 @@ export default function App() {
     setWrongFen(null)
     setSelectedSquare(null)
     setLegalTargets([])
+    setExplainText('')
+    setWrongAttempts(0)
     hintUsedRef.current = false
-  }, [history, status])
+  }, [history, status, replaying])
+
+  // ── Auto-solve (three-strike limit reached) ────────────────────────────────
+
+  const autoSolve = useCallback(() => {
+    if (!game || !puzzle) return
+    if (timerRef.current) clearTimeout(timerRef.current)
+    if (explainTimerRef.current) clearTimeout(explainTimerRef.current)
+
+    setSelectedSquare(null)
+    setLegalTargets([])
+    setWrongFen(null)
+    setReplaying(true)
+    setStatus('thinking')
+    setMsg("3 wrong attempts — here's the solution…")
+    setStreak(0)
+    setWrongAttempts(0)
+
+    const chess = new Chess(game.fen())
+    let idx = moveIdx
+
+    const step = () => {
+      const uci = puzzle.moves[idx]
+      if (!uci) {
+        setStatus('solved')
+        setMsg('Solution shown — next puzzle…')
+        setReplaying(false)
+        timerRef.current = setTimeout(() => goNextRef.current?.(), 1800)
+        return
+      }
+      const mv = chess.move(uciToObj(uci))
+      setGame(new Chess(chess.fen()))
+      if (mv) {
+        setHighlights({
+          [mv.from]: { background: 'rgba(245,158,11,.55)' },
+          [mv.to]:   { background: 'rgba(245,158,11,.55)' },
+        })
+      }
+      idx++
+      timerRef.current = setTimeout(step, 650)
+    }
+    timerRef.current = setTimeout(step, 500)
+  }, [game, puzzle, moveIdx, setStreak])
 
   // ── Reset stats ───────────────────────────────────────────────────────────
 
@@ -597,6 +705,7 @@ export default function App() {
   retryRef.current = retry
   hintRef.current = handleHint
   undoRef.current = handleUndo
+  autoSolveRef.current = autoSolve
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -635,8 +744,9 @@ export default function App() {
   const isSolved = status === 'solved'
   const isWrong  = status === 'wrong'
   const theme    = getBoardTheme(settings.boardTheme)
-  const canUndo  = history.length > 0 && status !== 'thinking'
-  const canHint  = status === 'playing' || status === 'wrong'
+  const canUndo    = history.length > 0 && status !== 'thinking' && !replaying
+  const canHint    = (status === 'playing' || status === 'wrong') && !replaying
+  const canExplain = !!puzzle && !replaying && status !== 'thinking'
 
   return (
     <div className="app" ref={appRef}>
@@ -663,273 +773,263 @@ export default function App() {
             <span className="stat-val">{streak}</span>
             <span className="stat-lbl">streak</span>
           </div>
-          <div className="stat">
-            <span className="stat-icon">✅</span>
-            <span className="stat-val">{totalSolved}</span>
-            <span className="stat-lbl">solved</span>
-          </div>
-          <div className="menu-wrap" ref={menuRef}>
-            <button
-              className="menu-btn"
-              aria-label="Menu"
-              aria-expanded={menuOpen}
-              onClick={() => setMenuOpen(o => !o)}
-            >
-              <span className="menu-btn-icon">☰</span>
-              {dailyInfo && !dailyCompleted[dailyInfo.dateStr] && <span className="menu-dot" />}
-            </button>
-            {menuOpen && (
-              <div className="menu-dropdown">
-                <button
-                  className="menu-item"
-                  disabled={!dailyInfo}
-                  onClick={() => { toggleDaily(); setMenuOpen(false) }}
-                >
-                  <span className="menu-item-icon">📅</span>
-                  <span className="menu-item-label">{isDaily ? 'Back to Puzzles' : "Today's Puzzle"}</span>
-                  {dailyInfo && dailyCompleted[dailyInfo.dateStr] && (
-                    <span className="menu-item-badge done">✓</span>
-                  )}
-                </button>
-                <button
-                  className="menu-item"
-                  onClick={() => {
-                    setAchievementsOpen(o => !o)
-                    setSettingsOpen(false)
-                    setMenuOpen(false)
-                  }}
-                >
-                  <span className="menu-item-icon">🏆</span>
-                  <span className="menu-item-label">Achievements</span>
-                  <span className="menu-item-badge">
-                    {unlockedAchievements.length}/{achievements.length}
-                  </span>
-                </button>
-                <button
-                  className="menu-item"
-                  onClick={() => {
-                    setSettingsOpen(o => !o)
-                    setAchievementsOpen(false)
-                    setMenuOpen(false)
-                  }}
-                >
-                  <span className="menu-item-icon">⚙</span>
-                  <span className="menu-item-label">Settings</span>
-                </button>
-              </div>
-            )}
-          </div>
+          <button
+            className="menu-btn"
+            aria-label="Menu"
+            aria-expanded={menuOpen}
+            onClick={() => setMenuOpen(true)}
+          >
+            <span className="menu-btn-icon">☰</span>
+            {dailyInfo && !dailyCompleted[dailyInfo.dateStr] && <span className="menu-dot" />}
+          </button>
         </div>
       </header>
 
-      {/* ── Settings panel ── */}
-      {settingsOpen && (
-        <div className="settings-panel">
-          <div className="settings-panel-header">
-            <h2>Settings</h2>
-            <button
-              className="settings-close-btn"
-              aria-label="Close settings"
-              onClick={() => setSettingsOpen(false)}
-            >
-              ✕
-            </button>
-          </div>
-          <label className="settings-row">
-            <span>Wrong-move shake animation</span>
-            <input
-              type="checkbox"
-              checked={settings.shake}
-              onChange={(e) => updateSettings({ shake: e.target.checked })}
-            />
-          </label>
-          <label className="settings-row">
-            <span>Sound effects</span>
-            <input
-              type="checkbox"
-              checked={settings.sound}
-              onChange={(e) => updateSettings({ sound: e.target.checked })}
-            />
-          </label>
-          <label className="settings-row">
-            <span>Post-solve explanation</span>
-            <input
-              type="checkbox"
-              checked={settings.showExplanations}
-              onChange={(e) => updateSettings({ showExplanations: e.target.checked })}
-            />
-          </label>
-          <label className="settings-row">
-            <span>Board theme</span>
-            <select
-              value={settings.boardTheme}
-              onChange={(e) => updateSettings({ boardTheme: e.target.value })}
-            >
-              {boardThemes.map(t => (
-                <option key={t.id} value={t.id}>{t.name}</option>
-              ))}
-            </select>
-          </label>
-
-          <div className="settings-section">
-            <div className="settings-section-title">
-              Difficulty: {settings.ratingMin}–{settings.ratingMax}
-            </div>
-            <div className="rating-range">
-              <input
-                type="range"
-                min="500"
-                max="2000"
-                step="50"
-                value={settings.ratingMin}
-                onChange={(e) => {
-                  const v = Math.min(Number(e.target.value), settings.ratingMax)
-                  updateSettings({ ratingMin: v })
-                }}
-              />
-              <input
-                type="range"
-                min="500"
-                max="2000"
-                step="50"
-                value={settings.ratingMax}
-                onChange={(e) => {
-                  const v = Math.max(Number(e.target.value), settings.ratingMin)
-                  updateSettings({ ratingMax: v })
-                }}
-              />
-            </div>
-            <label className="settings-row">
-              <span>Adaptive difficulty</span>
-              <input
-                type="checkbox"
-                checked={settings.adaptiveDifficulty}
-                onChange={(e) => updateSettings({ adaptiveDifficulty: e.target.checked })}
-              />
-            </label>
-            <p className="settings-hint">
-              When on, "Next Puzzle" leans toward the harder end of your range
-              after strong accuracy, and the easier end after a rough patch.
-            </p>
-          </div>
-
-          <div className="settings-section">
-            <div className="settings-section-title">
-              Puzzle themes
-              {settings.themes.length > 0 && (
-                <button className="link-btn" onClick={() => updateSettings({ themes: [] })}>
-                  Reset
+      {/* ── Full-screen menu overlay ── */}
+      {menuOpen && (
+        <div className="menu-overlay">
+          <div className="menu-overlay-header">
+            <h2>
+              {activePanel === 'stats' ? 'Stats'
+                : activePanel === 'achievements' ? `Achievements (${unlockedAchievements.length}/${achievements.length})`
+                : activePanel === 'settings' ? 'Settings'
+                : 'Menu'}
+            </h2>
+            <div className="menu-overlay-actions">
+              {activePanel && (
+                <button
+                  className="settings-close-btn"
+                  aria-label="Back"
+                  onClick={() => setActivePanel(null)}
+                >
+                  ←
                 </button>
               )}
+              <button
+                className="settings-close-btn"
+                aria-label="Close menu"
+                onClick={() => { setMenuOpen(false); setActivePanel(null) }}
+              >
+                ✕
+              </button>
             </div>
-            <div className="theme-grid">
-              {puzzleThemeOptions.map(opt => (
-                <label key={opt.id} className="theme-chip">
-                  <input
-                    type="checkbox"
-                    checked={settings.themes.includes(opt.id)}
-                    onChange={(e) => {
-                      const next = e.target.checked
-                        ? [...settings.themes, opt.id]
-                        : settings.themes.filter(t => t !== opt.id)
-                      updateSettings({ themes: next })
-                    }}
-                  />
-                  {opt.label}
-                </label>
-              ))}
-            </div>
-            <p className="settings-hint">No themes selected = all themes</p>
           </div>
 
-          <div className="settings-section">
-            <div className="settings-section-title">Stats</div>
-            <div className="stats-overview">
-              <div className="stats-overview-row">
-                <span>Accuracy</span>
-                <span>{accuracy === null ? '—' : `${accuracy}%`}</span>
-              </div>
-              <div className="stats-overview-row">
-                <span>Total solved</span>
-                <span>{totalSolved}</span>
-              </div>
-              <div className="stats-overview-row">
-                <span>Current streak</span>
-                <span>{streak}</span>
-              </div>
+          {activePanel === null && (
+            <div className="menu-list">
+              <button
+                className="menu-item"
+                disabled={!dailyInfo}
+                onClick={() => { toggleDaily(); setMenuOpen(false) }}
+              >
+                <span className="menu-item-icon">📅</span>
+                <span className="menu-item-label">{isDaily ? 'Back to Puzzles' : "Today's Puzzle"}</span>
+                {dailyInfo && dailyCompleted[dailyInfo.dateStr] && (
+                  <span className="menu-item-badge done">✓</span>
+                )}
+              </button>
+              <button className="menu-item" onClick={() => setActivePanel('stats')}>
+                <span className="menu-item-icon">📊</span>
+                <span className="menu-item-label">Stats</span>
+                <span className="menu-item-badge">{totalSolved}</span>
+              </button>
+              <button className="menu-item" onClick={() => setActivePanel('achievements')}>
+                <span className="menu-item-icon">🏆</span>
+                <span className="menu-item-label">Achievements</span>
+                <span className="menu-item-badge">
+                  {unlockedAchievements.length}/{achievements.length}
+                </span>
+              </button>
+              <button className="menu-item" onClick={() => setActivePanel('settings')}>
+                <span className="menu-item-icon">⚙</span>
+                <span className="menu-item-label">Settings</span>
+              </button>
             </div>
+          )}
 
-            <button className="link-btn" onClick={() => setShowBreakdown(b => !b)}>
-              {showBreakdown ? 'Hide breakdown' : 'Show breakdown'}
-            </button>
-
-            {showBreakdown && (
-              <div className="stats-breakdown">
-                <div className="stats-breakdown-group">
-                  <div className="stats-breakdown-title">Solved by rating</div>
-                  {RATING_BANDS.map(band => (
-                    <div className="stats-breakdown-row" key={band.id}>
-                      <span>{band.label}</span>
-                      <span>{solvedByRating[band.id] || 0}</span>
-                    </div>
-                  ))}
-                </div>
-                <div className="stats-breakdown-group">
-                  <div className="stats-breakdown-title">Solved by theme</div>
-                  {puzzleThemeOptions.some(opt => solvedByTheme[opt.id]) ? (
-                    puzzleThemeOptions
-                      .filter(opt => solvedByTheme[opt.id])
-                      .map(opt => (
-                        <div className="stats-breakdown-row" key={opt.id}>
-                          <span>{opt.label}</span>
-                          <span>{solvedByTheme[opt.id]}</span>
-                        </div>
-                      ))
-                  ) : (
-                    <p className="settings-hint">No solves recorded yet</p>
-                  )}
-                </div>
-              </div>
-            )}
-
-            <button className="btn btn-danger" onClick={handleResetStats}>
-              Reset Stats
-            </button>
-          </div>
-
-          <p className="settings-hint">
-            Shortcuts: Enter/→ next · R retry · H hint · U undo · Esc close
-          </p>
-        </div>
-      )}
-
-      {/* ── Achievements panel ── */}
-      {achievementsOpen && (
-        <div className="settings-panel">
-          <div className="settings-panel-header">
-            <h2>Achievements ({unlockedAchievements.length}/{achievements.length})</h2>
-            <button
-              className="settings-close-btn"
-              aria-label="Close achievements"
-              onClick={() => setAchievementsOpen(false)}
-            >
-              ✕
-            </button>
-          </div>
-          <div className="badge-grid">
-            {achievements.map(a => {
-              const unlocked = unlockedAchievements.includes(a.id)
-              return (
-                <div className={`badge-card${unlocked ? ' unlocked' : ' locked'}`} key={a.id}>
-                  <div className="badge-icon">{a.icon}</div>
-                  <div className="badge-info">
-                    <div className="badge-name">{a.name}</div>
-                    <div className="badge-desc">{a.description}</div>
+          {activePanel === 'stats' && (
+            <div className="settings-panel">
+              <div className="settings-section">
+                <div className="stats-overview">
+                  <div className="stats-overview-row">
+                    <span>Accuracy</span>
+                    <span>{accuracy === null ? '—' : `${accuracy}%`}</span>
+                  </div>
+                  <div className="stats-overview-row">
+                    <span>Total solved</span>
+                    <span>{totalSolved}</span>
+                  </div>
+                  <div className="stats-overview-row">
+                    <span>Current streak</span>
+                    <span>{streak}</span>
                   </div>
                 </div>
-              )
-            })}
-          </div>
+
+                <button className="link-btn" onClick={() => setShowBreakdown(b => !b)}>
+                  {showBreakdown ? 'Hide breakdown' : 'Show breakdown'}
+                </button>
+
+                {showBreakdown && (
+                  <div className="stats-breakdown">
+                    <div className="stats-breakdown-group">
+                      <div className="stats-breakdown-title">Solved by rating</div>
+                      {RATING_BANDS.map(band => (
+                        <div className="stats-breakdown-row" key={band.id}>
+                          <span>{band.label}</span>
+                          <span>{solvedByRating[band.id] || 0}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="stats-breakdown-group">
+                      <div className="stats-breakdown-title">Solved by theme</div>
+                      {puzzleThemeOptions.some(opt => solvedByTheme[opt.id]) ? (
+                        puzzleThemeOptions
+                          .filter(opt => solvedByTheme[opt.id])
+                          .map(opt => (
+                            <div className="stats-breakdown-row" key={opt.id}>
+                              <span>{opt.label}</span>
+                              <span>{solvedByTheme[opt.id]}</span>
+                            </div>
+                          ))
+                      ) : (
+                        <p className="settings-hint">No solves recorded yet</p>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                <button className="btn btn-danger" onClick={handleResetStats}>
+                  Reset Stats
+                </button>
+              </div>
+            </div>
+          )}
+
+          {activePanel === 'achievements' && (
+            <div className="settings-panel">
+              <div className="badge-grid">
+                {achievements.map(a => {
+                  const unlocked = unlockedAchievements.includes(a.id)
+                  return (
+                    <div className={`badge-card${unlocked ? ' unlocked' : ' locked'}`} key={a.id}>
+                      <div className="badge-icon">{a.icon}</div>
+                      <div className="badge-info">
+                        <div className="badge-name">{a.name}</div>
+                        <div className="badge-desc">{a.description}</div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {activePanel === 'settings' && (
+            <div className="settings-panel">
+              <label className="settings-row">
+                <span>Wrong-move shake animation</span>
+                <input
+                  type="checkbox"
+                  checked={settings.shake}
+                  onChange={(e) => updateSettings({ shake: e.target.checked })}
+                />
+              </label>
+              <label className="settings-row">
+                <span>Sound effects</span>
+                <input
+                  type="checkbox"
+                  checked={settings.sound}
+                  onChange={(e) => updateSettings({ sound: e.target.checked })}
+                />
+              </label>
+              <label className="settings-row">
+                <span>Board theme</span>
+                <select
+                  value={settings.boardTheme}
+                  onChange={(e) => updateSettings({ boardTheme: e.target.value })}
+                >
+                  {boardThemes.map(t => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+              </label>
+
+              <div className="settings-section">
+                <div className="settings-section-title">
+                  Difficulty: {settings.ratingMin}–{settings.ratingMax}
+                </div>
+                <div className="rating-range">
+                  <input
+                    type="range"
+                    min="500"
+                    max="2000"
+                    step="50"
+                    value={settings.ratingMin}
+                    onChange={(e) => {
+                      const v = Math.min(Number(e.target.value), settings.ratingMax)
+                      updateSettings({ ratingMin: v })
+                    }}
+                  />
+                  <input
+                    type="range"
+                    min="500"
+                    max="2000"
+                    step="50"
+                    value={settings.ratingMax}
+                    onChange={(e) => {
+                      const v = Math.max(Number(e.target.value), settings.ratingMin)
+                      updateSettings({ ratingMax: v })
+                    }}
+                  />
+                </div>
+                <label className="settings-row">
+                  <span>Adaptive difficulty</span>
+                  <input
+                    type="checkbox"
+                    checked={settings.adaptiveDifficulty}
+                    onChange={(e) => updateSettings({ adaptiveDifficulty: e.target.checked })}
+                  />
+                </label>
+                <p className="settings-hint">
+                  When on, "Next Puzzle" leans toward the harder end of your range
+                  after strong accuracy, and the easier end after a rough patch.
+                </p>
+              </div>
+
+              <div className="settings-section">
+                <div className="settings-section-title">
+                  Puzzle themes
+                  {settings.themes.length > 0 && (
+                    <button className="link-btn" onClick={() => updateSettings({ themes: [] })}>
+                      Reset
+                    </button>
+                  )}
+                </div>
+                <div className="theme-grid">
+                  {puzzleThemeOptions.map(opt => (
+                    <label key={opt.id} className="theme-chip">
+                      <input
+                        type="checkbox"
+                        checked={settings.themes.includes(opt.id)}
+                        onChange={(e) => {
+                          const next = e.target.checked
+                            ? [...settings.themes, opt.id]
+                            : settings.themes.filter(t => t !== opt.id)
+                          updateSettings({ themes: next })
+                        }}
+                      />
+                      {opt.label}
+                    </label>
+                  ))}
+                </div>
+                <p className="settings-hint">No themes selected = all themes</p>
+              </div>
+
+              <p className="settings-hint">
+                Shortcuts: Enter/→ next · R retry · H hint · U undo · Esc close
+              </p>
+            </div>
+          )}
         </div>
       )}
 
@@ -941,6 +1041,7 @@ export default function App() {
           {orientation === 'white' ? '⬜ White' : '⬛ Black'} to move
         </span>
         <span className="rating-badge">★ {puzzle.rating}</span>
+        <span className="solved-badge">✅ {totalSolved}</span>
       </div>
 
       {/* ── Board ── */}
@@ -974,6 +1075,9 @@ export default function App() {
         <button className="btn btn-secondary" onClick={handleHint} disabled={!canHint}>
           {hintLevel < 2 ? '💡 Hint' : '💡 Show Move'}
         </button>
+        <button className="btn btn-secondary" onClick={handleExplain} disabled={!canExplain}>
+          📖 Explain
+        </button>
       </div>
 
       {/* ── Feedback ── */}
@@ -984,8 +1088,8 @@ export default function App() {
           </p>
         )}
 
-        {isSolved && settings.showExplanations && (
-          <p className="feedback-explanation">{getExplanation(puzzle)}</p>
+        {explainText && (
+          <p className="feedback-explanation">{explainText}</p>
         )}
 
         {isSolved && (

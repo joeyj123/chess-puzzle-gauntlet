@@ -19,6 +19,12 @@ Chess Puzzle Gauntlet — React + Vite PWA. Repo: github.com/joeyj123/chess-puzz
 - Mobile scale-to-fit + viewport tweak + post-solve explanation + adaptive
   difficulty done this session (2026-06-12) — NOT YET COMMITTED, working
   tree has uncommitted changes (see "Uncommitted changes" below).
+- Thorough debug pass completed (2026-06-12): full manual review of all
+  changed files (App.jsx, useFitToScreen.js, explanations.js, useSettings.js,
+  App.css, index.html) via the Read tool — hooks rules, JSX/CSS balance all
+  clean. Found and fixed one real bug (board double-scaling under `zoom`,
+  see item 1 below). Code is ready to commit; only remaining step is testing
+  on a real phone.
 
 ## Uncommitted changes (2026-06-12, this session)
 1. **Mobile scale-to-fit + viewport tweak** — addresses "edges cut off, no
@@ -142,11 +148,13 @@ committed/pushed successfully (`db9d88a`), so treat as confirmed working
 unless an issue surfaces.
 
 ## Next steps
-- Test the scale-to-fit + viewport changes on a real phone, then commit/push
-  (commands below).
-- Remaining Tier 3 ideas (puzzle set expansion, adaptive difficulty, Puzzle
-  Rush, leaderboard, shareable results) have implementation notes in
-  FEATURES.md — pick one up in a fresh chat.
+- Code review/debug is done — commit/push (commands below), then test the
+  scale-to-fit + viewport changes (and the board-sizing fix) on a real phone:
+  confirm the board fills its wrapper with no gap and pinch-zoom doesn't
+  break making moves.
+- Remaining Tier 3 ideas (puzzle set expansion, Puzzle Rush, leaderboard,
+  shareable results) have implementation notes in FEATURES.md — pick one up
+  in a fresh chat. (Adaptive difficulty and post-solve explanation are done.)
 - If the user reports the confetti is still off-center or the mobile menu
   has issues, re-check `src/confetti.js` and the `.menu-*` styles in
   App.css/App.jsx added in `db9d88a`.

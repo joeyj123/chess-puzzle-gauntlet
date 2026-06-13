@@ -3,6 +3,8 @@
 .app {
   width: 100%;
   max-width: 520px;
+  height: 100vh;
+  height: 100dvh;
   margin: 0 auto;
   /* Base padding, bumped up by env(safe-area-inset-*) on devices with
      notches/Dynamic Island/home indicators (iOS PWA + Safari). Using max()
@@ -17,6 +19,7 @@
   align-items: center;
   gap: 1rem;
   box-sizing: border-box;
+  overflow: hidden;
 }
 
 .app-loading {
@@ -94,11 +97,6 @@
 
 /* -- Header menu (Daily / Achievements / Settings) ------------------------- */
 
-.menu-wrap {
-  position: relative;
-  flex-shrink: 0;
-}
-
 .menu-btn {
   position: relative;
   display: flex;
@@ -138,19 +136,55 @@
   border: 1px solid var(--surface);
 }
 
-.menu-dropdown {
-  position: absolute;
-  top: calc(100% + .5rem);
-  right: 0;
-  z-index: 50;
+/* Full-screen overlay — covers the entire app (board + everything else)
+   while the menu is open, and contains either the top-level menu list or
+   whichever panel (Stats / Achievements / Settings) is currently active. */
+.menu-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: var(--bg);
   display: flex;
   flex-direction: column;
-  min-width: 200px;
-  background: var(--surface2);
-  border: 1px solid rgba(255,255,255,.08);
+  gap: .75rem;
+  padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right)) max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+.menu-overlay-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: .6rem;
+  border-bottom: 1px solid rgba(255,255,255,.08);
+  flex-shrink: 0;
+}
+
+.menu-overlay-header h2 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.menu-overlay-actions {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  flex-shrink: 0;
+}
+
+.menu-list {
+  display: flex;
+  flex-direction: column;
+  gap: .5rem;
+}
+
+.menu-list .menu-item {
+  background: var(--surface);
+  border: 1px solid rgba(255,255,255,.07);
   border-radius: var(--radius);
-  box-shadow: 0 8px 24px rgba(0,0,0,.45);
-  overflow: hidden;
 }
 
 .menu-item {
@@ -556,6 +590,17 @@
   background: var(--surface);
   color: var(--gold);
   border: 1px solid rgba(255,255,255,.08);
+}
+
+.solved-badge {
+  padding: .3rem .75rem;
+  border-radius: 99px;
+  font-size: .82rem;
+  font-weight: 600;
+  letter-spacing: .01em;
+  background: var(--surface);
+  color: var(--green);
+  border: 1px solid rgba(255,255,255,.08);
   margin-left: auto;
 }
 
@@ -564,7 +609,17 @@
 .board-wrap {
   width: 100%;
   max-width: 480px;
-  aspect-ratio: 1 / 1;
+  /* Grow/shrink to fill whatever vertical space is left after the header,
+     puzzle info, controls, and feedback area take their natural height —
+     App.jsx then measures this box and gives the board an explicit pixel
+     size that fits both the available width AND height, so nothing ever
+     overflows and the page never needs to scroll. */
+  flex: 1 1 0;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   transition: box-shadow .3s;
   /* Disable the browser's own pan/zoom gestures over the board so dragging
      a piece never scrolls the page or triggers iOS's pull-to-refresh. */
@@ -736,10 +791,6 @@
 
   .menu-btn {
     font-size: 1.05rem;
-  }
-
-  .menu-dropdown {
-    min-width: 180px;
   }
 
   .theme-grid {
