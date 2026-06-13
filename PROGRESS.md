@@ -9,14 +9,93 @@ Chess Puzzle Gauntlet — React + Vite PWA. Repo: github.com/joeyj123/chess-puzz
 
 ## Status
 - Tier 1 & 2 features done (see FEATURES.md "Done" section).
-- Tier 3: Achievements/badges done and pushed (commit `6a53d42`, 2026-06-12).
-  Remaining Tier 3 items not started.
+- Tier 3: Achievements/badges done (commit `6a53d42`). Post-solve explanation
+  toggle AND adaptive difficulty done this session (NOT YET COMMITTED — see
+  below). Remaining Tier 3 items (expand puzzle set, Puzzle Rush, leaderboard,
+  shareable results) not started — see FEATURES.md for implementation notes.
 - CLAUDE.md is now tracked (added in `6a53d42`).
-- Mobile header consolidation + confetti centering fixes done 2026-06-12,
-  NOT YET committed/pushed (see "Last completed feature" below — give user
-  the commit/push commands).
+- Mobile header consolidation + confetti fixes done, committed, and pushed
+  (commit `db9d88a`, 2026-06-12).
+- Mobile scale-to-fit + viewport tweak + post-solve explanation + adaptive
+  difficulty done this session (2026-06-12) — NOT YET COMMITTED, working
+  tree has uncommitted changes (see "Uncommitted changes" below).
 
-## Last completed feature (2026-06-12, uncommitted)
+## Uncommitted changes (2026-06-12, this session)
+1. **Mobile scale-to-fit + viewport tweak** — addresses "edges cut off, no
+   way to zoom out" on phones.
+   - `index.html`: viewport meta no longer sets `maximum-scale=1.0,
+     user-scalable=no` — pinch-zoom is now available as a manual escape
+     hatch. Kept `width=device-width, initial-scale=1.0, viewport-fit=cover`.
+   - New `src/useFitToScreen.js`: `useFitToScreen(ref)` hook. On mount/
+     resize/orientationchange, resets `zoom` to 1, measures
+     `document.documentElement.scrollWidth` vs `window.innerWidth`, and if
+     content overflows horizontally, sets `el.style.zoom` to shrink just
+     enough to fit (clamped to a minimum of 0.7). No-ops on screens that
+     already fit (desktop/tablet untouched).
+   - `src/App.jsx`: added `appRef` ref + `useFitToScreen(appRef)`, attached
+     `ref={appRef}` to the root `.app` div.
+   - NOT YET TESTED IN AN ACTUAL BROWSER — sandbox bash build is broken (see
+     gotchas below), so this was verified by manual code review only. User
+     should test on a real phone (or Chrome device emulation) before
+     trusting it, especially: (b) `zoom` behaves in current mobile Safari/
+     Chrome, (c) pinch-zoom doesn't interfere with making moves on the
+     board.
+   - **Found + fixed during debug pass**: (a) board double-scaling. The
+     board-sizing `ResizeObserver` effect measures `boardWrapRef` via
+     `getBoundingClientRect()`, which returns the post-zoom *visual* size —
+     but that value was being passed straight to `<Chessboard
+     boardWidth={...}>` as a literal px, which would get scaled by `zoom`
+     *again* inside the same zoomed `.app` subtree (board rendering ~20-30%
+     smaller than its wrapper whenever `useFitToScreen` shrinks the page).
+     Fixed by dividing the measured size by `getComputedStyle(appRef.current
+     ).zoom` before calling `setBoardWidth`. Still not run in a real
+     browser — verify the board now fills its wrapper on a narrow phone.
+
+2. **Post-solve explanation toggle** (Tier 3 item, done).
+   - New `src/data/explanations.js`: `getExplanation(puzzle)` — builds a
+     1-2 sentence explanation from the puzzle's Lichess theme tags (mate-in-N
+     + tactic type, e.g. fork/pin/skewer/etc.), with a generic fallback.
+   - `src/useSettings.js`: added `showExplanations: false` default.
+   - `src/App.jsx`: imports `getExplanation`; new Settings row "Post-solve
+     explanation" checkbox; when solved and the setting is on, renders
+     `<p className="feedback-explanation">{getExplanation(puzzle)}</p>`
+     above the Next Puzzle button.
+   - `src/App.css`: new `.feedback-explanation` style (small muted centered
+     text).
+
+3. **Adaptive difficulty toggle** (Tier 3 item, done).
+   - `src/useSettings.js`: added `adaptiveDifficulty: false` default.
+   - `src/App.jsx`: new `adaptiveOffsetRef` (a ref, not state) — after each
+     solve, if `accuracy >= 85` adds +50, if `<= 55` adds -50, clamped to
+     ±250. `goNext()` then, if the toggle is on and the offset is non-zero,
+     searches the existing `queue` (forward from the normal "next" index,
+     wrapping) for the puzzle whose rating is closest to
+     `clamp(midpoint(ratingMin,ratingMax) + offset, ratingMin, ratingMax)`
+     and loads that instead of always `queue[qIdx+1]`.
+   - Deliberately does **not** touch `settings.ratingMin/ratingMax` or the
+     queue-rebuild effect — doing so would trigger an immediate
+     `loadPuzzle()` right when `totalSolved` increments (i.e. the instant a
+     puzzle is solved), wiping out the "solved" success message/confetti
+     before the user sees it. The ref + goNext approach avoids that
+     entirely.
+   - New Settings row "Adaptive difficulty" (off by default) with a
+     one-line explanation of the behavior.
+   - Same caveat as above: not run in a real browser, verified by code
+     review only.
+
+## New gotcha discovered this session
+- The sandbox bash mount serves a **stale/cached copy** of edited files —
+  after editing `index.html` and `src/App.jsx` via the file tools, the
+  sandbox bash view showed trailing null-byte padding / truncated content
+  that does NOT match the real files (confirmed correct via the Read tool,
+  948 lines for App.jsx vs sandbox's stale 942). `npx vite build` in the
+  sandbox fails on this stale copy — **this is a sandbox artifact, not a
+  real bug in the files**. Don't trust sandbox build failures without first
+  re-reading the file via the Read tool to confirm it matches what was
+  written. `git checkout -- index.html` in the sandbox also failed
+  ("Operation not permitted") — left as-is, harmless.
+
+## Last completed feature (2026-06-12, commit `db9d88a`)
 Mobile header cleanup + confetti/achievement fixes, addressing: cramped
 mobile header (daily/achievements/settings buttons), confetti firing on app
 open, and confetti bursting off-center.
@@ -58,7 +137,26 @@ achievements persist via `localStorage` (`cpg-stats` key) per browser/device,
 same as before. Not cross-device.
 
 Note: build wasn't run via sandbox bash (stale mount issue, see gotchas) —
-verified via full manual Read instead, same as the previous session.
+verified via full manual Read instead, same as the previous session. User
+committed/pushed successfully (`db9d88a`), so treat as confirmed working
+unless an issue surfaces.
+
+## Next steps
+- Test the scale-to-fit + viewport changes on a real phone, then commit/push
+  (commands below).
+- Remaining Tier 3 ideas (puzzle set expansion, adaptive difficulty, Puzzle
+  Rush, leaderboard, shareable results) have implementation notes in
+  FEATURES.md — pick one up in a fresh chat.
+- If the user reports the confetti is still off-center or the mobile menu
+  has issues, re-check `src/confetti.js` and the `.menu-*` styles in
+  App.css/App.jsx added in `db9d88a`.
+
+## Commit commands for this session's changes
+```
+git add -A
+git commit -m "Mobile scale-to-fit + viewport tweak; post-solve explanation and adaptive difficulty toggles"
+git push
+```
 
 ## Known gotchas
 - User runs commands in **PowerShell 5.1** — `&&` is NOT a valid statement

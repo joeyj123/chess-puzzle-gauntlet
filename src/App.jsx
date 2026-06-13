@@ -9,6 +9,8 @@ import { useSettings } from './useSettings'
 import { useStats, RATING_BANDS } from './useStats'
 import { achievements } from './data/achievements'
 import { playCorrect, playWrong, playSolved, playAchievement } from './sounds'
+import { useFitToScreen } from './useFitToScreen'
+import { getExplanation } from './data/explanations'
 import './App.css'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -71,6 +73,9 @@ export default function App() {
   const boardWrapRef = useRef(null)
   const toastRef = useRef(null)
   const menuRef = useRef(null)
+  const appRef = useRef(null)
+
+  useFitToScreen(appRef)
 
   // ── Load a puzzle ──────────────────────────────────────────────────────────
 
@@ -141,6 +146,26 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allPuzzles, settings.ratingMin, settings.ratingMax, settings.themes.join(','), loadPuzzle])
 
+  // ── Adaptive difficulty ───────────────────────────────────────────────────
+  // When enabled, tracks a running "offset" based on overall move accuracy
+  // after each solved puzzle (+50 on strong accuracy, -50 after a rough
+  // patch, clamped to ±250). goNext() uses this offset to prefer puzzles
+  // toward the harder/easier end of the user's selected rating range.
+  // Stored in a ref (not state) so it never triggers the queue-rebuild
+  // effect or disrupts the just-solved puzzle's UI.
+  const adaptiveOffsetRef = useRef(0)
+  const prevTotalSolvedRef = useRef(totalSolved)
+  useEffect(() => {
+    if (totalSolved === prevTotalSolvedRef.current) return
+    prevTotalSolvedRef.current = totalSolved
+    if (!settings.adaptiveDifficulty || accuracy == null) return
+
+    const nudge = accuracy >= 85 ? 50 : accuracy <= 55 ? -50 : 0
+    if (nudge === 0) return
+
+    adaptiveOffsetRef.current = Math.max(-250, Math.min(250, adaptiveOffsetRef.current + nudge))
+  }, [totalSolved, accuracy, settings.adaptiveDifficulty])
+
   // ── Keyboard shortcuts ────────────────────────────────────────────────────
 
   useEffect(() => {
@@ -184,7 +209,17 @@ export default function App() {
     const updateWidth = () => {
       const { width, height } = el.getBoundingClientRect()
       const size = Math.floor(Math.min(width, height) || width)
-      if (size > 0) setBoardWidth(size)
+      if (size > 0) {
+        // getBoundingClientRect() returns the post-zoom (visual) size, but
+        // react-chessboard's `boardWidth` prop becomes a literal CSS px
+        // value *inside* the same zoomed subtree (useFitToScreen applies
+        // `zoom` to the app root), which would otherwise get scaled by
+        // `zoom` a second time. Divide it back out so the rendered board
+        // matches the wrapper's actual visual size 1:1.
+        const zoomEl = appRef.current
+        const zoom = zoomEl ? parseFloat(getComputedStyle(zoomEl).zoom) || 1 : 1
+        setBoardWidth(Math.floor(size / zoom))
+      }
     }
 
     updateWidth()
@@ -240,10 +275,35 @@ export default function App() {
 
   const goNext = useCallback(() => {
     if (!queue.length) return
-    const next = (qIdx + 1) % queue.length
+    let next = (qIdx + 1) % queue.length
+
+    // Adaptive difficulty: if a performance-based offset has built up,
+    // prefer the nearest queued puzzle (searching forward, wrapping
+    // around) to a target rating shifted toward the harder/easier end of
+    // the selected range, instead of always taking the very next one.
+    if (settings.adaptiveDifficulty && adaptiveOffsetRef.current !== 0 && queue.length > 1) {
+      const mid = (settings.ratingMin + settings.ratingMax) / 2
+      const target = Math.min(
+        settings.ratingMax,
+        Math.max(settings.ratingMin, mid + adaptiveOffsetRef.current)
+      )
+      let bestIdx = next
+      let bestDiff = Infinity
+      for (let i = 0; i < queue.length; i++) {
+        const idx = (next + i) % queue.length
+        const diff = Math.abs(queue[idx].rating - target)
+        if (diff < bestDiff) {
+          bestDiff = diff
+          bestIdx = idx
+          if (diff < 25) break
+        }
+      }
+      next = bestIdx
+    }
+
     setQIdx(next)
     loadPuzzle(queue[next])
-  }, [queue, qIdx, loadPuzzle])
+  }, [queue, qIdx, loadPuzzle, settings.adaptiveDifficulty, settings.ratingMin, settings.ratingMax])
 
   const retry = useCallback(() => {
     if (puzzle) {
@@ -579,7 +639,7 @@ export default function App() {
   const canHint  = status === 'playing' || status === 'wrong'
 
   return (
-    <div className="app">
+    <div className="app" ref={appRef}>
       {/* ── Achievement toast ── */}
       {newlyUnlocked[0] && (
         <div className="achievement-toast" key={newlyUnlocked[0].id} ref={toastRef}>
@@ -692,6 +752,14 @@ export default function App() {
             />
           </label>
           <label className="settings-row">
+            <span>Post-solve explanation</span>
+            <input
+              type="checkbox"
+              checked={settings.showExplanations}
+              onChange={(e) => updateSettings({ showExplanations: e.target.checked })}
+            />
+          </label>
+          <label className="settings-row">
             <span>Board theme</span>
             <select
               value={settings.boardTheme}
@@ -731,6 +799,18 @@ export default function App() {
                 }}
               />
             </div>
+            <label className="settings-row">
+              <span>Adaptive difficulty</span>
+              <input
+                type="checkbox"
+                checked={settings.adaptiveDifficulty}
+                onChange={(e) => updateSettings({ adaptiveDifficulty: e.target.checked })}
+              />
+            </label>
+            <p className="settings-hint">
+              When on, "Next Puzzle" leans toward the harder end of your range
+              after strong accuracy, and the easier end after a rough patch.
+            </p>
           </div>
 
           <div className="settings-section">
@@ -902,6 +982,10 @@ export default function App() {
           <p className={`feedback-msg ${isSolved ? 'success' : isWrong ? 'error' : 'info'}`}>
             {msg}
           </p>
+        )}
+
+        {isSolved && settings.showExplanations && (
+          <p className="feedback-explanation">{getExplanation(puzzle)}</p>
         )}
 
         {isSolved && (

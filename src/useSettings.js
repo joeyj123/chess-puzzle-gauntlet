@@ -9,6 +9,8 @@ const defaults = {
   ratingMin: 1000,
   ratingMax: 2000,
   themes: [], // empty = all themes
+  showExplanations: false,
+  adaptiveDifficulty: false,
 }
 
 function load() {
