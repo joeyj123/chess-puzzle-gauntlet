@@ -532,10 +532,10 @@ export default function App() {
       const nextWrongAttempts = wrongAttempts + 1
       setWrongAttempts(nextWrongAttempts)
       if (nextWrongAttempts >= 3) {
-        setMsg(`Not quite — that's 3 wrong tries, here's the answer…`)
+        setMsg(`❌ 3 wrong tries — showing the answer…`)
         timerRef.current = setTimeout(() => autoSolveRef.current?.(), 900)
       } else {
-        setMsg('Not quite — try again!')
+        setMsg(`Not quite — try again! (${nextWrongAttempts}/3)`)
       }
       return true
     }
@@ -1209,7 +1209,7 @@ export default function App() {
         className={`board-wrap${isWrong && settings.shake ? ' shake' : ''}${isSolved ? ' glow-green' : ''}`}
       >
         <Chessboard
-          position={status === 'wrong' && wrongFen ? wrongFen : game.fen()}
+          position={game.fen()}
           onPieceDrop={onDrop}
           onSquareClick={onSquareClick}
           boardOrientation={orientation}
