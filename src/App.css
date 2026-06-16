@@ -662,12 +662,13 @@
 
 .board-wrap.shake {
   animation: shake .45s ease-in-out;
+  will-change: transform;
+  contain: layout style;
 }
 
 /* -- Controls --------------------------------------------------------------- */
 
 .control-row {
-  width: 100%;
   display: flex;
   gap: .6rem;
 }
@@ -679,7 +680,6 @@
 /* -- Feedback --------------------------------------------------------------- */
 
 .feedback-area {
-  width: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -863,4 +863,103 @@
   .board-wrap {
     max-width: 640px;
   }
+}
+
+/* -- Explain step-through modal --------------------------------------------- */
+
+/* Bottom-sheet panel that slides up over the controls/feedback area, leaving
+   the board visible above so the user can see each position. */
+.explain-modal {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 150;
+  background: var(--surface);
+  border-top: 1px solid rgba(255,255,255,.1);
+  border-radius: var(--radius) var(--radius) 0 0;
+  padding: max(.9rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-right)) max(1.25rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
+  display: flex;
+  flex-direction: column;
+  gap: .75rem;
+  box-shadow: 0 -8px 32px rgba(0,0,0,.45);
+  box-sizing: border-box;
+}
+
+.explain-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.explain-modal-title {
+  font-size: .95rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.explain-modal-step {
+  display: flex;
+  flex-direction: column;
+  gap: .35rem;
+}
+
+.explain-step-counter {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  font-size: .75rem;
+  color: var(--text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+.explain-step-badge {
+  font-size: .68rem;
+  font-weight: 700;
+  padding: .15rem .45rem;
+  border-radius: 99px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+.explain-step-badge.player   { background: rgba(34,197,94,.2);  color: var(--green); }
+.explain-step-badge.opponent { background: rgba(239,68,68,.18); color: var(--red);   }
+.explain-step-badge.setup    { background: rgba(255,255,255,.08); color: var(--text-muted); }
+
+.explain-step-san {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: .01em;
+}
+
+.explain-step-why {
+  font-size: .86rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.explain-modal-nav {
+  display: flex;
+  gap: .6rem;
+}
+
+.explain-modal-nav .btn {
+  flex: 1;
+  padding: .65rem 1rem;
+  font-size: .9rem;
+}
+
+@media (max-width: 480px) {
+  .explain-modal {
+    padding-top: .75rem;
+    gap: .6rem;
+  }
+
+  .explain-step-san { font-size: 1.1rem; }
+  .explain-step-why { font-size: .81rem; }
 }

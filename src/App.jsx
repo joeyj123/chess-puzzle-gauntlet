@@ -9,7 +9,7 @@ import { useSettings } from './useSettings'
 import { useStats, RATING_BANDS } from './useStats'
 import { achievements } from './data/achievements'
 import { playCorrect, playWrong, playSolved, playAchievement } from './sounds'
-import { getExplanation } from './data/explanations'
+import { buildExplainSteps } from './data/explanations'
 import './App.css'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -81,6 +81,11 @@ export default function App() {
   const [replaying,   setReplaying]   = useState(false)
   // Consecutive wrong attempts on the current puzzle (three-strike rule).
   const [wrongAttempts, setWrongAttempts] = useState(0)
+  // Step-through explain modal: array of { fen, san, label, why, isPlayer }
+  // built once when Explain is pressed, shown after the replay finishes.
+  const [explainSteps,    setExplainSteps]    = useState([])
+  const [explainModal,    setExplainModal]    = useState(false)
+  const [explainStepIdx,  setExplainStepIdx]  = useState(0)
   const timerRef = useRef(null)
   const explainTimerRef = useRef(null)
   const goNextRef = useRef(null)
@@ -131,6 +136,9 @@ export default function App() {
     setExplainText('')
     setReplaying(false)
     setWrongAttempts(0)
+    setExplainModal(false)
+    setExplainSteps([])
+    setExplainStepIdx(0)
     hintUsedRef.current = false
   }, [])
 
@@ -312,6 +320,14 @@ export default function App() {
     }
   }, [boardWrapMounted])
 
+  // When the explain modal is open and the user navigates steps, sync the
+  // board position and highlights to the current step.
+  useEffect(() => {
+    if (!explainModal || !explainSteps[explainStepIdx]) return
+    const s = explainSteps[explainStepIdx]
+    setGame(new Chess(s.fen))
+    setHighlights({})
+  }, [explainModal, explainStepIdx]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Achievement toasts ────────────────────────────────────────────────────
   // Show newly-unlocked achievements one at a time, auto-dismissing each
@@ -652,10 +668,12 @@ export default function App() {
     if (timerRef.current) clearTimeout(timerRef.current)
     if (explainTimerRef.current) clearTimeout(explainTimerRef.current)
 
-    const prevStatus = status
-    const prevMsg = msg
+    // Build the step data up-front (pure, no side effects)
+    const steps = buildExplainSteps(puzzle)
+
+    const prevStatus   = status
+    const prevMsg      = msg
     const prevWrongFen = wrongFen
-    const finalFen = game.fen()
 
     setSelectedSquare(null)
     setLegalTargets([])
@@ -672,11 +690,16 @@ export default function App() {
     let i = 0
     const step = () => {
       if (i >= puzzle.moves.length) {
-        setGame(new Chess(finalFen))
+        // Replay done — restore game state then show the modal
+        const lastFen = steps.length ? steps[steps.length - 1].fen : chess.fen()
+        setGame(new Chess(lastFen))
         setStatus(prevStatus)
         setMsg(prevMsg)
         setWrongFen(prevWrongFen)
-        setExplainText(getExplanation(puzzle))
+        setExplainText('')
+        setExplainSteps(steps)
+        setExplainStepIdx(0)
+        setExplainModal(true)
         setReplaying(false)
         return
       }
@@ -768,6 +791,15 @@ export default function App() {
       resetStats()
     }
   }, [resetStats])
+
+  // Close the explain modal and auto-advance to the next puzzle.
+  const closeExplainModal = useCallback(() => {
+    setExplainModal(false)
+    setExplainSteps([])
+    setExplainStepIdx(0)
+    setHighlights({})
+    goNextRef.current?.()
+  }, [])
 
   goNextRef.current = goNext
   retryRef.current = retry
@@ -1101,6 +1133,64 @@ export default function App() {
         </div>
       )}
 
+      {/* ── Explain step-through modal ── */}
+      {explainModal && explainSteps.length > 0 && (() => {
+        const step    = explainSteps[explainStepIdx]
+        const total   = explainSteps.length
+        const hasPrev = explainStepIdx > 0
+        const hasNext = explainStepIdx < total - 1
+        return (
+          <div className="explain-modal">
+            <div className="explain-modal-header">
+              <span className="explain-modal-title">Solution Walkthrough</span>
+              <button
+                className="settings-close-btn"
+                aria-label="Close and go to next puzzle"
+                onClick={closeExplainModal}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="explain-modal-step">
+              <div className="explain-step-counter">
+                Move {explainStepIdx + 1} of {total}
+                <span className={`explain-step-badge ${step.isSetup ? 'setup' : step.isPlayer ? 'player' : 'opponent'}`}>
+                  {step.isSetup ? 'Setup' : step.isPlayer ? 'Your Move' : 'Opponent'}
+                </span>
+              </div>
+              <div className="explain-step-san">{step.san}</div>
+              <p className="explain-step-why">{step.why}</p>
+            </div>
+
+            <div className="explain-modal-nav">
+              <button
+                className="btn btn-secondary"
+                onClick={() => setExplainStepIdx(i => i - 1)}
+                disabled={!hasPrev}
+              >
+                ◀ Prev
+              </button>
+              {hasNext ? (
+                <button
+                  className="btn btn-primary"
+                  onClick={() => setExplainStepIdx(i => i + 1)}
+                >
+                  Next ▶
+                </button>
+              ) : (
+                <button
+                  className="btn btn-primary"
+                  onClick={closeExplainModal}
+                >
+                  Done — Next Puzzle →
+                </button>
+              )}
+            </div>
+          </div>
+        )
+      })()}
+
       {/* ── Puzzle info ── */}
       <div className="puzzle-info">
         {isDaily && <span className="daily-badge">📅 Daily Puzzle</span>}
@@ -1115,6 +1205,7 @@ export default function App() {
       {/* ── Board ── */}
       <div
         ref={setBoardWrapNode}
+        style={{ width: boardWidth }}
         className={`board-wrap${isWrong && settings.shake ? ' shake' : ''}${isSolved ? ' glow-green' : ''}`}
       >
         <Chessboard
@@ -1132,11 +1223,17 @@ export default function App() {
           }}
           customDarkSquareStyle={{ backgroundColor: theme.dark }}
           customLightSquareStyle={{ backgroundColor: theme.light }}
+          isDraggablePiece={({ piece }) => {
+            if (replaying) return false
+            if (status !== 'playing' && status !== 'wrong') return false
+            const pieceColor = piece[0] === 'w' ? 'w' : 'b'
+            return pieceColor === game.turn()
+          }}
         />
       </div>
 
       {/* ── Controls (mobile-friendly buttons mirroring shortcuts) ── */}
-      <div className="control-row">
+      <div className="control-row" style={{ width: boardWidth }}>
         <button className="btn btn-secondary" onClick={handleUndo} disabled={!canUndo}>
           ↺ Undo
         </button>
@@ -1149,15 +1246,11 @@ export default function App() {
       </div>
 
       {/* ── Feedback ── */}
-      <div className="feedback-area">
+      <div className="feedback-area" style={{ width: boardWidth }}>
         {msg && (
           <p className={`feedback-msg ${isSolved ? 'success' : isWrong ? 'error' : 'info'}`}>
             {msg}
           </p>
-        )}
-
-        {explainText && (
-          <p className="feedback-explanation">{explainText}</p>
         )}
 
         {isSolved && (
