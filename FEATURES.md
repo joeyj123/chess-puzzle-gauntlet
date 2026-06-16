@@ -10,14 +10,11 @@ implementing items from a tier. Items move to "Done" once shipped.
 (all done — see Done section)
 
 ## Tier 3 — Bigger features
-- [ ] Expand puzzle set beyond 14k — target 25–30k puzzles
-      - Implementation note: write `scripts/generate-puzzles.mjs` (Node, ESM).
-        Stream `lichess_db_puzzle.csv` (1.1GB, gitignored), filter by
-        `Rating 500–2500`, `RatingDeviation < 75`, `NbPlays > 50`, then
-        sample a balanced distribution across rating bands. Output to
-        `public/puzzles.json`. Run `node scripts/generate-puzzles.mjs`,
-        commit, push — Vercel auto-deploys. SW caches after first load so
-        ongoing load time is negligible.
+- [x] Expand puzzle set beyond 14k (2026-06-16) — `scripts/generate-puzzles.mjs`
+      written and run; `public/puzzles.json` regenerated to ~27,000 puzzles
+      (ratings 500–2500, RD < 75, NbPlays > 50, balanced across 6 bands,
+      Fisher-Yates shuffled). Script streams the CSV so it never loads the
+      full 1.1GB into memory. Re-run anytime to refresh the set.
 - [x] "Puzzle Rush" timed mode (2026-06-16) — 3 or 5 minute countdown,
       solve puzzles as fast as possible, 3 wrong on one puzzle = skip.
       Score = puzzles fully solved. Full-screen overlay launched from the

@@ -8,12 +8,12 @@ Chess Puzzle Gauntlet — React + Vite PWA. Repo: github.com/joeyj123/chess-puzz
 (remote `origin`, branch `main`).
 
 ## Status
-- Tier 1 & 2 features done (see FEATURES.md "Done" section).
-- Tier 3: Achievements/badges done (commit `6a53d42`). Adaptive difficulty
-  done. Post-solve explanation toggle was replaced this session by an
-  "Explain" button (see below — no longer Tier 3, it's its own item now).
-  Remaining Tier 3 items (expand puzzle set, Puzzle Rush, leaderboard,
-  shareable results) not started — see FEATURES.md.
+- Tier 1, 2, and 3 features all done (see FEATURES.md "Done" section).
+- All Tier 3 items shipped: puzzle set expanded to ~27k, Puzzle Rush timed
+  mode, local leaderboard, reliability hardening, explain modal, three-strike
+  rule, full-screen menu, board-sizing rewrite, PWA fixes.
+- Shareable results deferred to Tier 4 (better paired with multiplayer accounts).
+- Tier 4 (multiplayer) is brainstorm-only for now — see FEATURES.md.
 - Mobile header consolidation + confetti fixes done, committed, pushed
   (commit `db9d88a`, 2026-06-12).
 - **2026-06-12 — mobile mockup fixes + desktop/PWA debug, NOT YET COMMITTED.**
@@ -384,21 +384,15 @@ git commit -m "Puzzle Rush timed mode, local leaderboard, puzzle gen script, rel
 git push
 ```
 
-### To expand the puzzle set (separate step, whenever ready)
-```
-node scripts/generate-puzzles.mjs
-git add public/puzzles.json
-git commit -m "Expand puzzle set to ~27k"
-git push
-```
+### Puzzle set already expanded
+`node scripts/generate-puzzles.mjs` was run this session — `public/puzzles.json`
+is now ~27k puzzles. Include it in the commit above (already staged via `git add -A`).
 
 ## Next steps
-1. Commit + push everything (commands above).
-2. Test Puzzle Rush: launch from ☰ menu, pick 3 min, solve a few puzzles,
-   verify score ticks up, timer turns red at 30s, results show on time-up,
-   leaderboard appears in Stats panel after first run.
-3. Run the puzzle generation script when ready to expand beyond 14k.
-4. Remaining stretch ideas: Puzzle Rush achievements, multiplayer (Tier 4).
+1. Commit + push (command above) if not already done.
+2. Test Puzzle Rush: launch from ☰ menu, pick 3 min, solve a few, verify
+   score ticks, timer goes red at 30s, results + leaderboard appear.
+3. Stretch ideas for next session: Puzzle Rush achievements, multiplayer (Tier 4).
 
 ## Known gotchas
 - User runs commands in **PowerShell 5.1** — `&&` is NOT a valid statement
