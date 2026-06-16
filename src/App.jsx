@@ -11,6 +11,8 @@ import { achievements } from './data/achievements'
 import { playCorrect, playWrong, playSolved, playAchievement } from './sounds'
 import { buildExplainSteps } from './data/explanations'
 import PuzzleRush from './PuzzleRush'
+import MultiplayerDuel from './MultiplayerDuel'
+import LiveChess from './LiveChess'
 import './App.css'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -78,6 +80,11 @@ export default function App() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [activePanel, setActivePanel] = useState(null)
   const [rushOpen, setRushOpen] = useState(false)
+  const [duelOpen,  setDuelOpen]  = useState(false)
+  const [chessOpen, setChessOpen] = useState(false)
+  // URL params: ?room=CODE opens the puzzle duel, ?chess=CODE opens a live chess game
+  const [initialRoom]  = useState(() => new URLSearchParams(window.location.search).get('room'))
+  const [initialChess] = useState(() => new URLSearchParams(window.location.search).get('chess'))
   // Post-solve "Explain" replay: shows the puzzle's full move sequence on the board.
   const [replaying,   setReplaying]   = useState(false)
   // Consecutive wrong attempts on the current puzzle (three-strike rule).
@@ -100,6 +107,12 @@ export default function App() {
   const boardWrapRef = useRef(null)
   const toastRef = useRef(null)
   const appRef = useRef(null)
+
+  // Auto-open duel overlay when the page was opened via a ?room= share link
+  useEffect(() => {
+    if (initialRoom)  setDuelOpen(true)
+    if (initialChess) setChessOpen(true)
+  }, [initialRoom, initialChess])
 
   // `.board-wrap` doesn't exist in the DOM during the initial "Loading
   // puzzles…" render (see the `if (!game || !puzzle)` early return below) —
@@ -865,6 +878,36 @@ export default function App() {
         />
       )}
 
+      {/* ── Multiplayer Duel overlay ── */}
+      {duelOpen && allPuzzles && (
+        <MultiplayerDuel
+          allPuzzles={allPuzzles}
+          settings={settings}
+          initialRoom={initialRoom}
+          onClose={() => {
+            setDuelOpen(false)
+            // Remove ?room= from URL without reloading so sharing still works
+            if (initialRoom) {
+              window.history.replaceState({}, '', window.location.pathname)
+            }
+          }}
+        />
+      )}
+
+      {/* ── Live Chess overlay ── */}
+      {chessOpen && (
+        <LiveChess
+          settings={settings}
+          initialRoom={initialChess}
+          onClose={() => {
+            setChessOpen(false)
+            if (initialChess) {
+              window.history.replaceState({}, '', window.location.pathname)
+            }
+          }}
+        />
+      )}
+
       {/* ── Achievement toast ── */}
       {newlyUnlocked[0] && (
         <div className="achievement-toast" key={newlyUnlocked[0].id} ref={toastRef}>
@@ -953,6 +996,21 @@ export default function App() {
                 {rushBestScore > 0 && (
                   <span className="menu-item-badge">{rushBestScore}</span>
                 )}
+              </button>
+              <button
+                className="menu-item"
+                disabled={!allPuzzles}
+                onClick={() => { setDuelOpen(true); setMenuOpen(false) }}
+              >
+                <span className="menu-item-icon">⚔️</span>
+                <span className="menu-item-label">Duel a Friend</span>
+              </button>
+              <button
+                className="menu-item"
+                onClick={() => { setChessOpen(true); setMenuOpen(false) }}
+              >
+                <span className="menu-item-icon">♟</span>
+                <span className="menu-item-label">Play Chess</span>
               </button>
               <button className="menu-item" onClick={() => setActivePanel('stats')}>
                 <span className="menu-item-icon">📊</span>

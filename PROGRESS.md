@@ -388,11 +388,89 @@ git push
 `node scripts/generate-puzzles.mjs` was run this session — `public/puzzles.json`
 is now ~27k puzzles. Include it in the commit above (already staged via `git add -A`).
 
+## Session 7 (2026-06-16) — Multiplayer Puzzle Duel, NOT YET COMMITTED
+
+### Changes made
+1. **`@supabase/supabase-js@2.108.2`** installed (`package.json` updated).
+2. **`.gitignore`** — added `.env.local` and `.env*.local` so credentials are never committed.
+3. **`.env.local`** (gitignored) — placeholder for `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`.
+4. **`src/supabaseClient.js`** — creates Supabase client from env vars; returns `null`
+   if env vars aren't configured (app shows a friendly "not configured" message instead of crashing).
+5. **`src/MultiplayerDuel.jsx`** — full-screen overlay (z-index 300, same pattern as PuzzleRush).
+   Phases: lobby (host waits with share link / guest joins) → countdown (3-2-1) →
+   playing (same puzzle for both, first to solve wins) → results (times + winner).
+   Board sizing uses the same ResizeObserver + callback-ref pattern as the main app.
+   No accounts needed — anonymous player ID in localStorage.
+6. **`src/App.jsx`** — 4 additive changes:
+   - `import MultiplayerDuel`
+   - `duelOpen` state + `initialRoom` (reads `?room=` from URL on mount)
+   - `useEffect` to auto-open duel when `initialRoom` is set (guest link flow)
+   - `<MultiplayerDuel>` overlay render + "⚔️ Duel a Friend" menu item
+7. **`src/App.css`** — ~200 lines of duel overlay CSS appended.
+8. **`MULTIPLAYER_SETUP.md`** — step-by-step guide: create Supabase project, run SQL
+   to create `rooms` table + RLS policies, enable Realtime, add Vercel env vars.
+
+### Build status
+`npm run build` passes cleanly (zero errors).
+
+### What the user needs to do before multiplayer works
+1. Follow `MULTIPLAYER_SETUP.md` (5 min — Supabase free project + SQL + env vars).
+2. Add `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` to `.env.local` locally
+   and to Vercel → Settings → Environment Variables for the deployed app.
+3. Commit + push (see commands below).
+
+### Commit commands (includes sessions 5, 6, and 7)
+```
+git add -A
+git commit -m "Multiplayer Puzzle Duel: Supabase rooms, share link, 1v1 race overlay"
+git push
+```
+
+## Session 8 (2026-06-16) — Live Chess Game, NOT YET COMMITTED
+
+### Changes made
+1. **`src/LiveChess.jsx`** — new full-screen overlay for a live 1v1 chess game.
+   Phases: lobby (host shares `?chess=CODE` link, waits) → playing (real-time
+   move sync via Supabase Realtime) → results (winner/draw + reason).
+   - Host always plays White, guest always plays Black.
+   - Moves are written to `chess_games.fen` in Supabase; the opponent reads the
+     new FEN via `postgres_changes` and syncs their local chess.js instance.
+   - Features: click-to-move + drag-and-drop, legal move dots, last-move yellow
+     highlight, check highlight (red king square), pulsing "in check" indicator,
+     captured pieces display, resign button with confirmation.
+   - Board sizing uses the same ResizeObserver + callback-ref pattern as the rest
+     of the app.
+2. **`src/App.jsx`** — additive changes only:
+   - `import LiveChess`
+   - `chessOpen` state + `initialChess` (reads `?chess=` from URL)
+   - `useEffect` to auto-open chess when `initialChess` is set (guest link flow)
+   - `<LiveChess>` overlay render
+   - "♟ Play Chess" menu item below "⚔️ Duel a Friend"
+3. **`src/App.css`** — live chess CSS appended (~70 lines): turn indicator with
+   pulse animation for check, captured pieces row, resign button, result subtitle.
+4. **`MULTIPLAYER_SETUP.md`** — added `chess_games` table SQL as step 7.
+
+### Build status
+`npm run build` passes cleanly (zero errors).
+
+### What the user needs to do before live chess works
+Same Supabase project as the duel feature — just run the additional SQL from
+MULTIPLAYER_SETUP.md step 7 to create the `chess_games` table.
+
+### Commit commands (includes sessions 5–8)
+```
+git add -A
+git commit -m "Live 1v1 chess game: real-time move sync, share link, resign, captured pieces"
+git push
+```
+
 ## Next steps
-1. Commit + push (command above) if not already done.
-2. Test Puzzle Rush: launch from ☰ menu, pick 3 min, solve a few, verify
-   score ticks, timer goes red at 30s, results + leaderboard appear.
-3. Stretch ideas for next session: Puzzle Rush achievements, multiplayer (Tier 4).
+1. Follow MULTIPLAYER_SETUP.md step 7 (run `chess_games` SQL in Supabase SQL Editor).
+2. Fill in `.env.local` with Supabase credentials (if not done from duel setup).
+3. Test locally: open ☰ → "♟ Play Chess", share link with another tab, play moves,
+   verify opponent's board updates in real time. Test resign + checkmate flows.
+4. Add Vercel env vars and redeploy, then test on the live URL.
+5. Future: time controls/clock, draw offers, move history panel.
 
 ## Known gotchas
 - User runs commands in **PowerShell 5.1** — `&&` is NOT a valid statement

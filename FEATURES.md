@@ -26,15 +26,15 @@ implementing items from a tier. Items move to "Done" once shipped.
 - [ ] Wordle-style shareable result summary (defer — better paired with multiplayer accounts)
 
 ## Tier 4 — Stretch goals (later, after polish)
-- [ ] Real-time multiplayer ("Opus Magnum" — needs further design before starting):
-      - Beyond just a shareable link: support inviting people via phone number or
-        contacts, plus a friend system (usernames/profiles) so people can find and
-        challenge each other directly.
-      - Real-time move sync, game rooms, reconnection handling.
-      - Requires a small free backend (e.g. Supabase/Firebase realtime DB) or
-        WebRTC + free signaling, plus some form of accounts/identity for the
-        friend system and invites.
-      - Brainstorm only for now — do not implement yet.
+- [x] Multiplayer Puzzle Duel (2026-06-16) — 1v1 puzzle race via shareable link.
+      Host clicks "⚔️ Duel a Friend" in the ☰ menu, gets a share URL
+      (`?room=CODE`). Guest opens the link, both players get the same puzzle,
+      3-2-1 countdown fires, first to solve wins. Results screen shows both
+      times. Backend: Supabase free tier (Realtime channels + postgres_changes).
+      No accounts required — anonymous player IDs in localStorage. See
+      `MULTIPLAYER_SETUP.md` for Supabase setup steps.
+- [ ] Wordle-style shareable result summary (can now pair with duel results)
+- [ ] Friend system (usernames, invite by username, match history) — Tier 4 stretch
 
 ## Done
 - [x] Tone down / make optional the wrong-move shake animation (toggle in ⚙ settings)
