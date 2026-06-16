@@ -45,9 +45,10 @@ body {
      devices so buttons/squares feel instant. */
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
-  /* Respect iOS safe areas (notch, Dynamic Island, home indicator) at the
-     outermost level so nothing is ever drawn under system gesture zones. */
-  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  /* Safe-area insets are handled by .app's own max() padding — no body
+     padding needed. Adding safe-area padding here too would make .app
+     taller than body's content area, causing the footer to be clipped
+     by body's overflow:hidden on iOS. */
 }
 
 a {

@@ -390,6 +390,12 @@
   padding: .6rem .75rem;
 }
 
+.stats-breakdown-group {
+  display: flex;
+  flex-direction: column;
+  gap: .25rem;
+}
+
 .stats-breakdown-title {
   font-size: .78rem;
   font-weight: 700;

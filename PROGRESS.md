@@ -259,11 +259,66 @@ case): confirm ranks 1 and 8 are fully visible at various window sizes
 report back exactly what's still wrong with the PWA (screenshot + what device/
 how it's installed) so that can be investigated specifically next.
 
+## Session 4 (2026-06-12) — actual root cause of ranks 1/8 cropping found
+User tested `npm run dev` on `localhost:5173` (screenshot): ranks 1 and 8
+*still* chopped, identical symmetric crop, even with session 3's
+direct-`.board-wrap`-measurement rewrite. The measurement logic itself was
+fine — the effect was simply **never running**.
+
+### Root cause: `boardWrapRef.current` is `null` when the sizing effect first runs
+- `App.jsx` has an early-return loading screen:
+  `if (!game || !puzzle) return <div className="app-loading">...`. On the
+  very first render, `game`/`puzzle` are both `null` (puzzles load
+  asynchronously), so **`.board-wrap` doesn't exist in the DOM yet**.
+- The board-sizing `useEffect(..., [])` runs once after that first render,
+  reads `boardWrapRef.current` → `null`, hits `if (!wrapEl) return`, and exits
+  *immediately* — no `updateSize()`, no `ResizeObserver`, no resize/
+  orientation/visualViewport/fonts listeners ever get attached.
+- Once puzzles finish loading, the component re-renders with the real
+  `.app`/`.board-wrap` markup and `boardWrapRef.current` becomes non-null —
+  but the effect has empty deps, so it never runs again.
+- Net result: `boardWidth` stays at its `useState(480)` initial value
+  forever, completely disconnected from `.board-wrap`'s actual rendered size.
+  On this user's window, `.board-wrap`'s real height is less than 480px, so
+  the 480×480 board overflows `.board-wrap` and gets centered + clipped by
+  `overflow: hidden` — symmetric top/bottom crop = ranks 1 and 8 chopped.
+  This explains why session 2's and session 3's *measurement logic* changes
+  never visibly helped: the effect computing that logic was dead code after
+  the first render.
+
+### Fix — callback ref so the effect re-runs once `.board-wrap` mounts
+- `src/App.jsx`:
+  - Added `const [boardWrapMounted, setBoardWrapMounted] = useState(false)`
+    and `const setBoardWrapNode = useCallback((node) => { boardWrapRef.current
+    = node; setBoardWrapMounted(!!node) }, [])`.
+  - `.board-wrap`'s `ref={boardWrapRef}` → `ref={setBoardWrapNode}`.
+    `boardWrapRef.current` is still populated (used elsewhere by
+    `fireConfettiFromElement`), but now setting it also flips
+    `boardWrapMounted` to `true`.
+  - Board-sizing effect's dependency array `[]` → `[boardWrapMounted]`, so it
+    re-runs (and this time finds a real DOM node) the moment `.board-wrap`
+    mounts after the loading screen goes away.
+- No changes needed to the measurement logic itself (session 3's
+  `getBoundingClientRect()`-based `updateSize()` is correct) — this was
+  purely a "the effect never fires" bug.
+
+### Not yet tested live
+This should fix ranks 1/8 cropping on `localhost:5173` — **please refresh and
+re-check** (hard refresh, since dev server should pick up the change via HMR
+but a full reload rules out any stale-module weirdness). If it's fixed there,
+the same fix should also resolve the deployed Vercel cropping and likely
+contributes to the "PWA screwey" reports (a permanently-wrong `boardWidth`
+would affect the installed PWA too) — but PWA-specific behavior still needs
+its own test pass after this lands (uninstall/reinstall to pick up SW v3 +
+prod-only registration from session 2).
+
 ## Next steps
-1. Test the session 2 fixes (see "Not yet verified live" above) — desktop
+1. **Refresh `localhost:5173` and confirm ranks 1/8 are no longer cropped** —
+   this is the priority check before anything else below.
+2. Test the session 2 fixes (see "Not yet verified live" above) — desktop
    resize behavior and PWA reinstall/board sizing/drag.
-2. Commit + push everything (session 1 + session 2 changes, commands below).
-3. Test on a real phone / Chrome device emulation:
+3. Commit + push everything (sessions 1-4, commands below).
+4. Test on a real phone / Chrome device emulation:
    - No vertical scrollbar, board fills available space on a narrow screen.
    - Pinch-zoom is disabled (as intended).
    - Explain button replays the solution and shows the explanation text.
@@ -273,8 +328,8 @@ how it's installed) so that can be investigated specifically next.
      Achievements, and Settings panels (back/close buttons, breakdown
      toggle, Reset Stats); close the menu and confirm the board/puzzle state
      is unchanged.
-4. Consider deleting the now-dead `src/useFitToScreen.js` in a cleanup pass.
-5. Remaining Tier 3 ideas (puzzle set expansion, Puzzle Rush, leaderboard,
+5. Consider deleting the now-dead `src/useFitToScreen.js` in a cleanup pass.
+6. Remaining Tier 3 ideas (puzzle set expansion, Puzzle Rush, leaderboard,
    shareable results) — pick up in a fresh chat, see FEATURES.md.
 
 ## Commit commands for this session's changes

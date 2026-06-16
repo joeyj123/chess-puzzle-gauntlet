@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo } from 'react'
 import { Chess } from 'chess.js'
 import { Chessboard } from 'react-chessboard'
 import { fireConfettiFromElement } from './confetti'
@@ -61,7 +61,12 @@ export default function App() {
   const [wrongFen,    setWrongFen]    = useState(null)
   const [selectedSquare, setSelectedSquare] = useState(null)
   const [legalTargets,   setLegalTargets]   = useState([])
-  const [boardWidth,  setBoardWidth]  = useState(480)
+  const [boardWidth,  setBoardWidth]  = useState(() =>
+    Math.max(MIN_BOARD, Math.floor(Math.min(
+      window.innerWidth  - 40,   // viewport width minus rough padding
+      window.innerHeight * 0.45, // ~45% of height (leaves room for UI chrome)
+    )))
+  )
   const [dailyInfo,   setDailyInfo]   = useState(null) // { puzzle, dateStr }
   const [isDaily,     setIsDaily]     = useState(false)
   const [showBreakdown, setShowBreakdown] = useState(false)
@@ -87,6 +92,21 @@ export default function App() {
   const boardWrapRef = useRef(null)
   const toastRef = useRef(null)
   const appRef = useRef(null)
+
+  // `.board-wrap` doesn't exist in the DOM during the initial "Loading
+  // puzzles…" render (see the `if (!game || !puzzle)` early return below) —
+  // at that point `boardWrapRef.current` is null. A plain `useEffect(..., [])`
+  // would run once during that loading render, see `wrapEl === null`, bail
+  // out immediately, and never run again — so the board-sizing effect (and
+  // its ResizeObserver) would never actually attach once the real board
+  // mounts, leaving `boardWidth` stuck at its initial value forever. This
+  // callback ref + state flag lets the sizing effect re-run the moment
+  // `.board-wrap` actually mounts.
+  const [boardWrapMounted, setBoardWrapMounted] = useState(false)
+  const setBoardWrapNode = useCallback((node) => {
+    boardWrapRef.current = node
+    setBoardWrapMounted(!!node)
+  }, [])
 
   // ── Load a puzzle ──────────────────────────────────────────────────────────
 
@@ -255,7 +275,7 @@ export default function App() {
   // size changes for any reason (window resize, sibling height changes,
   // font reflow, etc.), so the measurement is always re-validated against
   // reality.
-  useEffect(() => {
+  useLayoutEffect(() => {
     const wrapEl = boardWrapRef.current
     if (!wrapEl) return
 
@@ -290,7 +310,7 @@ export default function App() {
       window.removeEventListener('orientationchange', updateSize)
       window.visualViewport?.removeEventListener('resize', updateSize)
     }
-  }, [])
+  }, [boardWrapMounted])
 
 
   // ── Achievement toasts ────────────────────────────────────────────────────
@@ -1094,7 +1114,7 @@ export default function App() {
 
       {/* ── Board ── */}
       <div
-        ref={boardWrapRef}
+        ref={setBoardWrapNode}
         className={`board-wrap${isWrong && settings.shake ? ' shake' : ''}${isSolved ? ' glow-green' : ''}`}
       >
         <Chessboard
