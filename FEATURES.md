@@ -18,15 +18,14 @@ implementing items from a tier. Items move to "Done" once shipped.
         `public/puzzles.json`. Run `node scripts/generate-puzzles.mjs`,
         commit, push — Vercel auto-deploys. SW caches after first load so
         ongoing load time is negligible.
-- [ ] "Puzzle Rush" timed mode
-      - Implementation note: new top-level mode (separate from the normal
-        queue) — countdown timer (e.g. 3/5 min), rapid puzzle succession,
-        wrong move = either skip or end run (Lichess-style 3-strikes is a
-        good model), score = puzzles solved. Needs new state machine
-        (status union extended or a separate mini-component), a start
-        screen, and a results screen. Store best score via
-        localStorage/useStats alongside existing stats.
-- [ ] Local leaderboard for streaks/Puzzle Rush scores
+- [x] "Puzzle Rush" timed mode (2026-06-16) — 3 or 5 minute countdown,
+      solve puzzles as fast as possible, 3 wrong on one puzzle = skip.
+      Score = puzzles fully solved. Full-screen overlay launched from the
+      ☰ menu. Best score shown as badge on the menu item.
+- [x] Local leaderboard for Puzzle Rush scores (2026-06-16) — top-10 runs
+      stored in localStorage (score, duration, date). Visible on the
+      results screen after each run and in Stats panel of the main menu.
+      Entries sorted by score descending, gold/silver/bronze rank colors.
 - [ ] Wordle-style shareable result summary (defer — better paired with multiplayer accounts)
 
 ## Tier 4 — Stretch goals (later, after polish)

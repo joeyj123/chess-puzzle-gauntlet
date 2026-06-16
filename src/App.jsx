@@ -10,6 +10,7 @@ import { useStats, RATING_BANDS } from './useStats'
 import { achievements } from './data/achievements'
 import { playCorrect, playWrong, playSolved, playAchievement } from './sounds'
 import { buildExplainSteps } from './data/explanations'
+import PuzzleRush from './PuzzleRush'
 import './App.css'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -51,6 +52,7 @@ export default function App() {
     streak, totalSolved, accuracy, solvedByRating, solvedByTheme, dailyCompleted,
     unlockedAchievements, newlyUnlocked, clearNewlyUnlocked,
     setStreak, setTotalSolved, recordMove, recordSolve, markDailyCompleted, resetStats,
+    rushBestScore, rushLeaderboard, addRushScore,
   } = useStats()
   const [orientation, setOrientation] = useState('white')
   const [loadError,   setLoadError]   = useState(null)
@@ -75,6 +77,7 @@ export default function App() {
   // those is opened from the list.
   const [menuOpen, setMenuOpen] = useState(false)
   const [activePanel, setActivePanel] = useState(null)
+  const [rushOpen, setRushOpen] = useState(false)
   // Post-solve "Explain" replay: shows the puzzle's full move sequence on the board.
   const [replaying,   setReplaying]   = useState(false)
   // Consecutive wrong attempts on the current puzzle (three-strike rule).
@@ -850,6 +853,18 @@ export default function App() {
 
   return (
     <div className="app" ref={appRef}>
+      {/* ── Puzzle Rush overlay ── */}
+      {rushOpen && allPuzzles && (
+        <PuzzleRush
+          allPuzzles={allPuzzles}
+          settings={settings}
+          bestScore={rushBestScore}
+          leaderboard={rushLeaderboard}
+          onAddScore={addRushScore}
+          onClose={() => setRushOpen(false)}
+        />
+      )}
+
       {/* ── Achievement toast ── */}
       {newlyUnlocked[0] && (
         <div className="achievement-toast" key={newlyUnlocked[0].id} ref={toastRef}>
@@ -928,6 +943,17 @@ export default function App() {
                   <span className="menu-item-badge done">✓</span>
                 )}
               </button>
+              <button
+                className="menu-item"
+                disabled={!allPuzzles}
+                onClick={() => { setRushOpen(true); setMenuOpen(false) }}
+              >
+                <span className="menu-item-icon">⚡</span>
+                <span className="menu-item-label">Puzzle Rush</span>
+                {rushBestScore > 0 && (
+                  <span className="menu-item-badge">{rushBestScore}</span>
+                )}
+              </button>
               <button className="menu-item" onClick={() => setActivePanel('stats')}>
                 <span className="menu-item-icon">📊</span>
                 <span className="menu-item-label">Stats</span>
@@ -995,6 +1021,21 @@ export default function App() {
                         <p className="settings-hint">No solves recorded yet</p>
                       )}
                     </div>
+                  </div>
+                )}
+
+                {rushLeaderboard.length > 0 && (
+                  <div className="rush-leaderboard rush-lb-inline">
+                    <div className="rush-lb-title">⚡ Puzzle Rush — Top Runs</div>
+                    {rushLeaderboard.map((entry, i) => (
+                      <div className="rush-lb-row" key={i}>
+                        <span className="rush-lb-rank">{i + 1}</span>
+                        <span className="rush-lb-score">{entry.score}</span>
+                        <span className="rush-lb-meta">
+                          {Math.floor(entry.durationSeconds / 60)}min · {entry.date}
+                        </span>
+                      </div>
+                    ))}
                   </div>
                 )}
 

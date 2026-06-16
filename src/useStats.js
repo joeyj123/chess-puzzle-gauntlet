@@ -12,6 +12,11 @@ const defaults = {
   // current `streak` resets on a wrong/hint move, this doesn't).
   maxStreak: 0,
   totalSolved: 0,
+  // Best Puzzle Rush score (number of puzzles solved in one timed run).
+  rushBestScore: 0,
+  // Top-10 Puzzle Rush leaderboard entries. Each entry:
+  //   { score, durationSeconds, date }  (date = "YYYY-MM-DD")
+  rushLeaderboard: [],
   // Move-level accuracy: every legal move the player attempts (correct or
   // wrong) is tallied here. Hint reveals are not counted as attempts.
   correctMoves: 0,
@@ -63,6 +68,29 @@ export function useStats() {
 
   const setTotalSolved = (updater) =>
     setStats(s => ({ ...s, totalSolved: typeof updater === 'function' ? updater(s.totalSolved) : updater }))
+
+  const setRushBestScore = (score) =>
+    setStats(s => ({ ...s, rushBestScore: Math.max(s.rushBestScore || 0, score) }))
+
+  /**
+   * Add a completed Puzzle Rush run to the leaderboard.
+   * Keeps the top 10 entries sorted by score descending.
+   */
+  const addRushScore = (score, durationSeconds) => {
+    const date = new Date()
+    const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+    setStats(s => {
+      const entry = { score, durationSeconds, date: dateStr }
+      const updated = [...(s.rushLeaderboard || []), entry]
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 10)
+      return {
+        ...s,
+        rushBestScore: Math.max(s.rushBestScore || 0, score),
+        rushLeaderboard: updated,
+      }
+    })
+  }
 
   /** Record one player move attempt as correct or wrong (for accuracy). */
   const recordMove = (isCorrect) =>
@@ -154,6 +182,10 @@ export function useStats() {
     streak: stats.streak,
     maxStreak: stats.maxStreak,
     totalSolved: stats.totalSolved,
+    rushBestScore: stats.rushBestScore || 0,
+    rushLeaderboard: stats.rushLeaderboard || [],
+    setRushBestScore,
+    addRushScore,
     correctMoves: stats.correctMoves,
     wrongMoves: stats.wrongMoves,
     accuracy,

@@ -345,10 +345,60 @@ git commit -m "Reliability hardening: error boundary, puzzle validation, explain
 git push
 ```
 
+## Session 6 (2026-06-16) — new features, NOT YET COMMITTED
+
+### Changes made
+1. **`scripts/generate-puzzles.mjs`** — new Node.js script to regenerate
+   `public/puzzles.json` from `lichess_db_puzzle.csv`. Streams the CSV
+   (never loads the full 1.1GB), filters by rating 500–2500 / RD < 75 /
+   NbPlays > 50, samples ~27,000 puzzles in a balanced distribution across
+   6 rating bands, Fisher-Yates shuffles the output, writes to
+   `public/puzzles.json`. Run with: `node scripts/generate-puzzles.mjs`
+   (takes 3–8 min). Commit only `public/puzzles.json` afterward.
+
+2. **`src/PuzzleRush.jsx`** — new self-contained Puzzle Rush component.
+   Full-screen overlay (z-index 300, above everything). Phases: start
+   screen (pick 3 or 5 min, shows best score) → playing (HUD with live
+   countdown + score, board, 3-wrong-skip rule, "Give up" button) →
+   results screen (score, new-best celebration, top-10 leaderboard).
+   Board sizing uses the same ResizeObserver approach as the main app.
+
+3. **`src/useStats.js`** — added `rushBestScore`, `rushLeaderboard`
+   (top-10 array of `{score, durationSeconds, date}`), `addRushScore`
+   (inserts entry, keeps top 10 sorted, updates best). All persisted in
+   the existing `cpg-stats` localStorage key.
+
+4. **`src/App.jsx`** — wired PuzzleRush: imported component, pulled new
+   stats fields, added `rushOpen` state, added "⚡ Puzzle Rush" menu item
+   (with best-score badge), added `<PuzzleRush>` overlay render, added
+   inline leaderboard to the Stats panel.
+
+5. **`src/App.css`** — added all Puzzle Rush and leaderboard CSS.
+
+6. **`FEATURES.md`** / **`PROGRESS.md`** updated.
+
+### Commit commands (includes session 5 hardening + session 6 features)
+```
+git add -A
+git commit -m "Puzzle Rush timed mode, local leaderboard, puzzle gen script, reliability hardening"
+git push
+```
+
+### To expand the puzzle set (separate step, whenever ready)
+```
+node scripts/generate-puzzles.mjs
+git add public/puzzles.json
+git commit -m "Expand puzzle set to ~27k"
+git push
+```
+
 ## Next steps
-1. Commit + push the session 5 hardening changes (commands above).
-2. Write `scripts/generate-puzzles.mjs` to expand puzzle set to 25–30k (see FEATURES.md).
-3. Remaining Tier 3 ideas (Puzzle Rush, leaderboard) — see FEATURES.md.
+1. Commit + push everything (commands above).
+2. Test Puzzle Rush: launch from ☰ menu, pick 3 min, solve a few puzzles,
+   verify score ticks up, timer turns red at 30s, results show on time-up,
+   leaderboard appears in Stats panel after first run.
+3. Run the puzzle generation script when ready to expand beyond 14k.
+4. Remaining stretch ideas: Puzzle Rush achievements, multiplayer (Tier 4).
 
 ## Known gotchas
 - User runs commands in **PowerShell 5.1** — `&&` is NOT a valid statement
