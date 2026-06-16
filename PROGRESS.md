@@ -312,32 +312,43 @@ would affect the installed PWA too) — but PWA-specific behavior still needs
 its own test pass after this lands (uninstall/reinstall to pick up SW v3 +
 prod-only registration from session 2).
 
-## Next steps
-1. **Refresh `localhost:5173` and confirm ranks 1/8 are no longer cropped** —
-   this is the priority check before anything else below.
-2. Test the session 2 fixes (see "Not yet verified live" above) — desktop
-   resize behavior and PWA reinstall/board sizing/drag.
-3. Commit + push everything (sessions 1-4, commands below).
-4. Test on a real phone / Chrome device emulation:
-   - No vertical scrollbar, board fills available space on a narrow screen.
-   - Pinch-zoom is disabled (as intended).
-   - Explain button replays the solution and shows the explanation text.
-   - Trigger 3 wrong moves in a row on a puzzle → verify auto-solve replay,
-     streak resets to 0, and it auto-advances to the next puzzle.
-   - Open the ☰ menu → confirm it fully covers the board; check Stats,
-     Achievements, and Settings panels (back/close buttons, breakdown
-     toggle, Reset Stats); close the menu and confirm the board/puzzle state
-     is unchanged.
-5. Consider deleting the now-dead `src/useFitToScreen.js` in a cleanup pass.
-6. Remaining Tier 3 ideas (puzzle set expansion, Puzzle Rush, leaderboard,
-   shareable results) — pick up in a fresh chat, see FEATURES.md.
+## Session 5 (2026-06-16) — reliability hardening, NOT YET COMMITTED
+All previous sessions' changes are now assumed committed and live on Vercel.
+This session focused on making the codebase more robust before adding new features.
 
-## Commit commands for this session's changes
+### Changes made
+1. **Deleted `src/useFitToScreen.js`** — dead code since session 1's mobile rework.
+2. **Removed all `explainText`/`setExplainText` dead state** from `App.jsx` — replaced
+   by the step-through explain modal in the previous session but never cleaned up.
+3. **Error boundary** added to `src/main.jsx` — wraps `<App />` in an `ErrorBoundary`
+   class component. If any render throws (e.g. bad FEN, corrupted state), the app
+   shows a friendly "Something went wrong — Reload app" screen instead of a white page.
+4. **Puzzle data validation** in `src/data/puzzles.js` — `loadPuzzles()` now filters
+   out any malformed puzzle objects (missing id/fen/moves/rating/themes, wrong types,
+   empty moves array). Logs a warning with the count of dropped puzzles. Throws if the
+   entire array is empty or not an array.
+5. **Defensive try/catch in `buildExplainSteps`** (`src/data/explanations.js`) — the
+   public function now wraps the internal `_buildSteps` logic in a try/catch, returning
+   `[]` on any error. Individual `chess.move()` calls also wrapped so one bad UCI string
+   skips that step rather than aborting the whole explain sequence.
+6. **Split `timerRef` into three named refs** (`src/App.jsx`):
+   - `computerTimerRef` — delay before the computer plays its reply after a correct move
+   - `autoSolveTimerRef` — three-strike auto-solve delay
+   - `replayTimerRef` — replay / explain step-through delays
+   Each clear site now only cancels the appropriate timer, eliminating the possibility
+   of one timer accidentally canceling an unrelated pending action.
+
+### Commit commands
 ```
 git add -A
-git commit -m "Mobile fit rework, Explain button, 3-strike auto-solve, full-screen menu overhaul, board-sizing/PWA fixes"
+git commit -m "Reliability hardening: error boundary, puzzle validation, explain try/catch, named timer refs, dead code removal"
 git push
 ```
+
+## Next steps
+1. Commit + push the session 5 hardening changes (commands above).
+2. Write `scripts/generate-puzzles.mjs` to expand puzzle set to 25–30k (see FEATURES.md).
+3. Remaining Tier 3 ideas (Puzzle Rush, leaderboard) — see FEATURES.md.
 
 ## Known gotchas
 - User runs commands in **PowerShell 5.1** — `&&` is NOT a valid statement

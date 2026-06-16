@@ -10,14 +10,14 @@ implementing items from a tier. Items move to "Done" once shipped.
 (all done — see Done section)
 
 ## Tier 3 — Bigger features
-- [ ] Expand puzzle set beyond 10k, or periodically refresh
-      - Implementation note: regenerate `public/puzzles.json` from
-        `lichess_db_puzzle.csv` (1.1GB, gitignored). Check whatever script/
-        process was originally used to produce the current `puzzles.json`
-        (likely a one-off Node/Python script, not currently checked in —
-        find or recreate it). Decide on a target count and rating/theme
-        distribution before regenerating so the bundle size stays
-        reasonable for a PWA.
+- [ ] Expand puzzle set beyond 14k — target 25–30k puzzles
+      - Implementation note: write `scripts/generate-puzzles.mjs` (Node, ESM).
+        Stream `lichess_db_puzzle.csv` (1.1GB, gitignored), filter by
+        `Rating 500–2500`, `RatingDeviation < 75`, `NbPlays > 50`, then
+        sample a balanced distribution across rating bands. Output to
+        `public/puzzles.json`. Run `node scripts/generate-puzzles.mjs`,
+        commit, push — Vercel auto-deploys. SW caches after first load so
+        ongoing load time is negligible.
 - [ ] "Puzzle Rush" timed mode
       - Implementation note: new top-level mode (separate from the normal
         queue) — countdown timer (e.g. 3/5 min), rapid puzzle succession,
@@ -27,7 +27,7 @@ implementing items from a tier. Items move to "Done" once shipped.
         screen, and a results screen. Store best score via
         localStorage/useStats alongside existing stats.
 - [ ] Local leaderboard for streaks/Puzzle Rush scores
-- [ ] Wordle-style shareable result summary
+- [ ] Wordle-style shareable result summary (defer — better paired with multiplayer accounts)
 
 ## Tier 4 — Stretch goals (later, after polish)
 - [ ] Real-time multiplayer ("Opus Magnum" — needs further design before starting):

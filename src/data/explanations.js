@@ -73,7 +73,15 @@ function pieceName(type) { return PIECE_NAMES[type] || type }
  */
 export function buildExplainSteps(puzzle) {
   if (!puzzle) return []
+  try {
+    return _buildSteps(puzzle)
+  } catch (err) {
+    console.error('[buildExplainSteps] Failed to build explanation steps:', err)
+    return []
+  }
+}
 
+function _buildSteps(puzzle) {
   const chess = new Chess(puzzle.fen)
   const themes = puzzle.themes || []
 
@@ -89,11 +97,15 @@ export function buildExplainSteps(puzzle) {
     const to   = uci.slice(2, 4)
     const promotion = uci[4] || undefined
 
-    const pieceBeforeMove = chess.get(from)
-    const targetSquare    = chess.get(to)
-    const isCapture       = !!targetSquare
+    const targetSquare = chess.get(to)
+    const isCapture    = !!targetSquare
 
-    const result = chess.move({ from, to, promotion })
+    let result
+    try {
+      result = chess.move({ from, to, promotion })
+    } catch {
+      result = null
+    }
     if (!result) return
 
     const san         = result.san

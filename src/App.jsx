@@ -75,9 +75,7 @@ export default function App() {
   // those is opened from the list.
   const [menuOpen, setMenuOpen] = useState(false)
   const [activePanel, setActivePanel] = useState(null)
-  // Post-solve "Explain" replay: shows the puzzle's full move sequence on the
-  // board, then a short text explanation of why it works.
-  const [explainText, setExplainText] = useState('')
+  // Post-solve "Explain" replay: shows the puzzle's full move sequence on the board.
   const [replaying,   setReplaying]   = useState(false)
   // Consecutive wrong attempts on the current puzzle (three-strike rule).
   const [wrongAttempts, setWrongAttempts] = useState(0)
@@ -86,8 +84,10 @@ export default function App() {
   const [explainSteps,    setExplainSteps]    = useState([])
   const [explainModal,    setExplainModal]    = useState(false)
   const [explainStepIdx,  setExplainStepIdx]  = useState(0)
-  const timerRef = useRef(null)
-  const explainTimerRef = useRef(null)
+  const computerTimerRef  = useRef(null)  // delay before computer plays its reply move
+  const autoSolveTimerRef = useRef(null)  // three-strike auto-solve delay
+  const replayTimerRef    = useRef(null)  // replay / explain step-through delay
+  const explainTimerRef   = useRef(null)
   const goNextRef = useRef(null)
   const retryRef = useRef(null)
   const hintRef = useRef(null)
@@ -116,8 +116,10 @@ export default function App() {
   // ── Load a puzzle ──────────────────────────────────────────────────────────
 
   const loadPuzzle = useCallback((p) => {
-    if (timerRef.current) clearTimeout(timerRef.current)
-    if (explainTimerRef.current) clearTimeout(explainTimerRef.current)
+    if (computerTimerRef.current)  clearTimeout(computerTimerRef.current)
+    if (autoSolveTimerRef.current) clearTimeout(autoSolveTimerRef.current)
+    if (replayTimerRef.current)    clearTimeout(replayTimerRef.current)
+    if (explainTimerRef.current)   clearTimeout(explainTimerRef.current)
     const chess = new Chess(p.fen)
     const setupMove = uciToObj(p.moves[0])
     chess.move(setupMove)
@@ -133,7 +135,6 @@ export default function App() {
     setWrongFen(null)
     setSelectedSquare(null)
     setLegalTargets([])
-    setExplainText('')
     setReplaying(false)
     setWrongAttempts(0)
     setExplainModal(false)
@@ -154,8 +155,10 @@ export default function App() {
       })
     return () => {
       cancelled = true
-      if (timerRef.current) clearTimeout(timerRef.current)
-      if (explainTimerRef.current) clearTimeout(explainTimerRef.current)
+      if (computerTimerRef.current)  clearTimeout(computerTimerRef.current)
+      if (autoSolveTimerRef.current) clearTimeout(autoSolveTimerRef.current)
+      if (replayTimerRef.current)    clearTimeout(replayTimerRef.current)
+      if (explainTimerRef.current)   clearTimeout(explainTimerRef.current)
     }
   }, [])
 
@@ -409,7 +412,6 @@ export default function App() {
       [result.from]: { background: 'rgba(34,197,94,.45)' },
       [result.to]:   { background: 'rgba(34,197,94,.45)' },
     })
-    setExplainText('')
     setWrongAttempts(0)
 
     const hasComputerResponse = moveIdx + 1 < puzzle.moves.length
@@ -446,7 +448,7 @@ export default function App() {
       if (settings.sound) playCorrect()
 
       const idxAtMove = moveIdx
-      timerRef.current = setTimeout(() => {
+      computerTimerRef.current = setTimeout(() => {
         const afterComp = new Chess(copy.fen())
         const compMove = afterComp.move(uciToObj(puzzle.moves[idxAtMove + 1]))
         if (compMove) {
@@ -475,9 +477,8 @@ export default function App() {
     const expected = puzzle.moves[moveIdx]
     if (!expected) return false
 
-    // Clear any pending auto-solve (three-strike) timer — the player is
-    // making a new attempt, so let that play out instead.
-    if (timerRef.current) clearTimeout(timerRef.current)
+    // Clear any pending auto-solve timer — the player is making a new attempt.
+    if (autoSolveTimerRef.current) clearTimeout(autoSolveTimerRef.current)
 
     // Attempt the move in chess.js (validates legality)
     const copy = new Chess(game.fen())
@@ -525,15 +526,13 @@ export default function App() {
       if (settings.sound) playWrong()
       recordMove(false)
       setHistory(h => (h.length && h[h.length - 1].wasWrong ? h : [...h, { fen: game.fen(), moveIdx, wasWrong: true }]))
-      setExplainText('')
-
       // Three-strike rule: 3 consecutive wrong attempts on this puzzle
       // auto-reveals the solution, resets the streak, and moves on.
       const nextWrongAttempts = wrongAttempts + 1
       setWrongAttempts(nextWrongAttempts)
       if (nextWrongAttempts >= 3) {
         setMsg(`❌ 3 wrong tries — showing the answer…`)
-        timerRef.current = setTimeout(() => autoSolveRef.current?.(), 900)
+        autoSolveTimerRef.current = setTimeout(() => autoSolveRef.current?.(), 900)
       } else {
         setMsg(`Not quite — try again! (${nextWrongAttempts}/3)`)
       }
@@ -622,9 +621,8 @@ export default function App() {
     const from = expected.slice(0, 2)
     const to = expected.slice(2, 4)
 
-    // Clear any pending auto-solve (three-strike) timer — the player is
-    // taking a hint instead of letting the strike limit play out.
-    if (timerRef.current) clearTimeout(timerRef.current)
+    // Clear any pending auto-solve timer — the player is taking a hint instead.
+    if (autoSolveTimerRef.current) clearTimeout(autoSolveTimerRef.current)
 
     // A hint changes the highlighted squares, so clear any click-to-move
     // selection to avoid stale highlights/targets.
@@ -665,8 +663,10 @@ export default function App() {
 
   const handleExplain = useCallback(() => {
     if (!puzzle || !game || replaying || status === 'thinking') return
-    if (timerRef.current) clearTimeout(timerRef.current)
-    if (explainTimerRef.current) clearTimeout(explainTimerRef.current)
+    if (computerTimerRef.current)  clearTimeout(computerTimerRef.current)
+    if (autoSolveTimerRef.current) clearTimeout(autoSolveTimerRef.current)
+    if (replayTimerRef.current)    clearTimeout(replayTimerRef.current)
+    if (explainTimerRef.current)   clearTimeout(explainTimerRef.current)
 
     // Build the step data up-front (pure, no side effects)
     const steps = buildExplainSteps(puzzle)
@@ -678,7 +678,6 @@ export default function App() {
     setSelectedSquare(null)
     setLegalTargets([])
     setReplaying(true)
-    setExplainText('')
     setStatus('thinking')
     setMsg('Replaying the line…')
     setWrongFen(null)
@@ -696,7 +695,6 @@ export default function App() {
         setStatus(prevStatus)
         setMsg(prevMsg)
         setWrongFen(prevWrongFen)
-        setExplainText('')
         setExplainSteps(steps)
         setExplainStepIdx(0)
         setExplainModal(true)
@@ -722,7 +720,8 @@ export default function App() {
   const handleUndo = useCallback(() => {
     if (history.length === 0 || status === 'thinking' || replaying) return
     const last = history[history.length - 1]
-    if (timerRef.current) clearTimeout(timerRef.current)
+    if (computerTimerRef.current)  clearTimeout(computerTimerRef.current)
+    if (autoSolveTimerRef.current) clearTimeout(autoSolveTimerRef.current)
     if (status === 'solved') {
       setTotalSolved(t => Math.max(0, t - 1))
       if (!hintUsedRef.current) setStreak(s => Math.max(0, s - 1))
@@ -737,7 +736,6 @@ export default function App() {
     setWrongFen(null)
     setSelectedSquare(null)
     setLegalTargets([])
-    setExplainText('')
     setWrongAttempts(0)
     hintUsedRef.current = false
   }, [history, status, replaying])
@@ -746,8 +744,10 @@ export default function App() {
 
   const autoSolve = useCallback(() => {
     if (!game || !puzzle) return
-    if (timerRef.current) clearTimeout(timerRef.current)
-    if (explainTimerRef.current) clearTimeout(explainTimerRef.current)
+    if (computerTimerRef.current)  clearTimeout(computerTimerRef.current)
+    if (autoSolveTimerRef.current) clearTimeout(autoSolveTimerRef.current)
+    if (replayTimerRef.current)    clearTimeout(replayTimerRef.current)
+    if (explainTimerRef.current)   clearTimeout(explainTimerRef.current)
 
     setSelectedSquare(null)
     setLegalTargets([])
@@ -767,7 +767,7 @@ export default function App() {
         setStatus('solved')
         setMsg('Solution shown — next puzzle…')
         setReplaying(false)
-        timerRef.current = setTimeout(() => goNextRef.current?.(), 1800)
+        replayTimerRef.current = setTimeout(() => goNextRef.current?.(), 1800)
         return
       }
       const mv = chess.move(uciToObj(uci))
@@ -779,9 +779,9 @@ export default function App() {
         })
       }
       idx++
-      timerRef.current = setTimeout(step, 650)
+      replayTimerRef.current = setTimeout(step, 650)
     }
-    timerRef.current = setTimeout(step, 500)
+    replayTimerRef.current = setTimeout(step, 500)
   }, [game, puzzle, moveIdx, setStreak])
 
   // ── Reset stats ───────────────────────────────────────────────────────────

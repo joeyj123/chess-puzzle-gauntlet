@@ -14,12 +14,36 @@
 
 let cachedPuzzles = null
 
+/**
+ * Return true if a puzzle object has the minimum required shape.
+ * Silently drops malformed rows so one bad entry can't crash the app.
+ */
+function isValidPuzzle(p) {
+  return (
+    p !== null &&
+    typeof p === 'object' &&
+    typeof p.id === 'string' && p.id.length > 0 &&
+    typeof p.fen === 'string' && p.fen.length > 0 &&
+    Array.isArray(p.moves) && p.moves.length >= 1 &&
+    p.moves.every(m => typeof m === 'string' && m.length >= 4) &&
+    Array.isArray(p.themes) &&
+    typeof p.rating === 'number'
+  )
+}
+
 /** Fetch and cache the local puzzle set. */
 export async function loadPuzzles() {
   if (cachedPuzzles) return cachedPuzzles
   const res = await fetch(`${import.meta.env.BASE_URL}puzzles.json`)
   if (!res.ok) throw new Error(`Failed to load puzzles.json: ${res.status}`)
-  cachedPuzzles = await res.json()
+  const raw = await res.json()
+  if (!Array.isArray(raw)) throw new Error('puzzles.json must be a JSON array')
+  const valid = raw.filter(isValidPuzzle)
+  if (valid.length === 0) throw new Error('puzzles.json contained no valid puzzles')
+  if (valid.length < raw.length) {
+    console.warn(`[puzzles] Dropped ${raw.length - valid.length} malformed puzzle(s)`)
+  }
+  cachedPuzzles = valid
   return cachedPuzzles
 }
 
