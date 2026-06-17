@@ -28,7 +28,7 @@ class ErrorBoundary extends Component {
             An unexpected error occurred. Your stats are saved — just reload to continue.
           </p>
           <button
-            onClick={() => window.location.reload()}
+            onClick={() => { window.location.href = window.location.pathname }}
             style={{
               padding: '.6rem 1.4rem', borderRadius: '8px', border: 'none',
               background: '#2563eb', color: '#fff', fontSize: '1rem', cursor: 'pointer',

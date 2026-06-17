@@ -135,10 +135,12 @@ export default function LiveChess({ settings, initialRoom, onClose }) {
           // Sync board state when the opponent has moved (their FEN update)
           if (row.fen && row.fen !== START_FEN) {
             setGame(prev => {
-              // Only apply if this is actually a new position
-              if (prev.fen() === row.fen) return prev
-              const g = new Chess(row.fen)
-              return g
+              try {
+                if (prev.fen() === row.fen) return prev
+                return new Chess(row.fen)
+              } catch {
+                return prev
+              }
             })
             // Highlight last move if we can infer it from pgn
             tryHighlightLastMove(row.pgn)
@@ -366,26 +368,30 @@ export default function LiveChess({ settings, initialRoom, onClose }) {
 
   // ── Custom square styles ──────────────────────────────────────────────────
   function getCustomSquareStyles() {
-    const styles = {}
-    // Last-move yellow highlight
-    if (lastMove) {
-      styles[lastMove.from] = { background: 'rgba(255,200,0,0.4)' }
-      styles[lastMove.to]   = { background: 'rgba(255,200,0,0.4)' }
+    try {
+      const styles = {}
+      // Last-move yellow highlight
+      if (lastMove) {
+        styles[lastMove.from] = { background: 'rgba(255,200,0,0.4)' }
+        styles[lastMove.to]   = { background: 'rgba(255,200,0,0.4)' }
+      }
+      // Selected piece
+      if (selectedSq) styles[selectedSq] = { background: 'rgba(100,180,255,0.7)' }
+      // Legal target dots
+      legalTargets.forEach(sq => {
+        styles[sq] = { background: 'radial-gradient(circle, rgba(0,0,0,0.18) 36%, transparent 40%)' }
+      })
+      // Check highlight
+      if (game.inCheck()) {
+        const kingSquare = game.board().flat().find(
+          p => p && p.type === 'k' && p.color === game.turn()
+        )?.square
+        if (kingSquare) styles[kingSquare] = { background: 'rgba(239,68,68,0.55)' }
+      }
+      return styles
+    } catch {
+      return {}
     }
-    // Selected piece
-    if (selectedSq) styles[selectedSq] = { background: 'rgba(100,180,255,0.7)' }
-    // Legal target dots
-    legalTargets.forEach(sq => {
-      styles[sq] = { background: 'radial-gradient(circle, rgba(0,0,0,0.18) 36%, transparent 40%)' }
-    })
-    // Check highlight
-    if (game.inCheck()) {
-      const kingSquare = game.board().flat().find(
-        p => p && p.type === 'k' && p.color === game.turn()
-      )?.square
-      if (kingSquare) styles[kingSquare] = { background: 'rgba(239,68,68,0.55)' }
-    }
-    return styles
   }
 
   // ── Board theme ───────────────────────────────────────────────────────────
@@ -410,8 +416,8 @@ export default function LiveChess({ settings, initialRoom, onClose }) {
   // ── Derived display values ────────────────────────────────────────────────
   const myColor       = role === 'host' ? 'w' : 'b'
   const myTurn        = phase === 'playing' && isMyTurn(game)
-  const inCheck       = phase === 'playing' && game.inCheck() && game.turn() === myColor
-  const captured      = getCaptured(game)
+  const inCheck       = phase === 'playing' && (() => { try { return game.inCheck() && game.turn() === myColor } catch { return false } })()
+  const captured      = (() => { try { return getCaptured(game) } catch { return { byWhite: [], byBlack: [] } } })()
   const myCaptured    = role === 'host' ? captured.byWhite : captured.byBlack  // pieces I captured
   const theirCaptured = role === 'host' ? captured.byBlack : captured.byWhite
 
