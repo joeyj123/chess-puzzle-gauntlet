@@ -464,13 +464,32 @@ git commit -m "Live 1v1 chess game: real-time move sync, share link, resign, cap
 git push
 ```
 
+## Session 9 (2026-06-16) — Supabase setup + full deploy
+
+### What was done
+- Supabase project created (free tier, no credit card).
+- Both SQL tables created: `rooms` (puzzle duel) and `chess_games` (live chess).
+- Realtime enabled on both tables via the Publications UI.
+- `.env.local` filled in with real `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`.
+- Both env vars added to Vercel project settings (Production and Preview).
+- User ran `git add -A && git commit && git push` — everything is live on Vercel.
+
+### Current status
+All multiplayer features are fully live and deployed:
+- **⚔️ Duel a Friend** — puzzle race via shareable `?room=CODE` link
+- **♟ Play Chess** — live 1v1 chess game via shareable `?chess=CODE` link
+
+Both features work locally (`npm run dev`) and on the Vercel production URL.
+Supabase free tier — no ongoing cost expected for hobby-scale usage.
+
 ## Next steps
-1. Follow MULTIPLAYER_SETUP.md step 7 (run `chess_games` SQL in Supabase SQL Editor).
-2. Fill in `.env.local` with Supabase credentials (if not done from duel setup).
-3. Test locally: open ☰ → "♟ Play Chess", share link with another tab, play moves,
-   verify opponent's board updates in real time. Test resign + checkmate flows.
-4. Add Vercel env vars and redeploy, then test on the live URL.
-5. Future: time controls/clock, draw offers, move history panel.
+1. Test multiplayer with a real second player on the live URL.
+2. Future stretch ideas:
+   - Time controls / chess clock
+   - Draw offers
+   - Move history / notation panel
+   - Wordle-style shareable result card (now pairs well with duel results)
+   - Friend system / usernames
 
 ## Known gotchas
 - User runs commands in **PowerShell 5.1** — `&&` is NOT a valid statement

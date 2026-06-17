@@ -11,12 +11,39 @@
  *   onClose     - called when the overlay should be dismissed
  */
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, Component } from 'react'
 import { Chess } from 'chess.js'
 import { Chessboard } from 'react-chessboard'
 import { getBoardTheme } from './data/boardThemes'
 import { playCorrect, playWrong, playSolved } from './sounds'
 import { supabase } from './supabaseClient'
+import QRShareCode from './QRShareCode'
+
+// ── Local error boundary ─────────────────────────────────────────────────────
+// Catches any render/effect throw inside the game overlay and shows a friendly
+// "Back" screen instead of letting it bubble up to the global error boundary.
+class LiveChessErrorBoundary extends Component {
+  state = { crashed: false }
+  static getDerivedStateFromError() { return { crashed: true } }
+  componentDidCatch(err) { console.error('[LiveChess] render error:', err) }
+  render() {
+    if (this.state.crashed) {
+      return (
+        <div className="duel-overlay">
+          <div className="duel-unconfigured">
+            <div className="duel-unconfigured-icon">⚠️</div>
+            <h2>Connection error</h2>
+            <p>Something went wrong with the game. Please try again.</p>
+            <button className="duel-btn duel-btn-primary" onClick={this.props.onClose}>
+              Back
+            </button>
+          </div>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
 
 const MIN_BOARD = 160
 const START_FEN  = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
@@ -65,7 +92,15 @@ function getCaptured(game) {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export default function LiveChess({ settings, initialRoom, onClose }) {
+export default function LiveChess(props) {
+  return (
+    <LiveChessErrorBoundary onClose={props.onClose}>
+      <LiveChessGame {...props} />
+    </LiveChessErrorBoundary>
+  )
+}
+
+function LiveChessGame({ settings, initialRoom, onClose }) {
   const myId = useRef(getOrCreatePlayerId())
 
   // ── Connection state ─────────────────────────────────────────────────────
@@ -492,6 +527,10 @@ export default function LiveChess({ settings, initialRoom, onClose }) {
                     </button>
                   </div>
                   <div className="duel-room-code">Room: <strong>{roomCode}</strong></div>
+                  <div className="duel-qr-wrap">
+                    <QRShareCode url={shareUrl} size={160} />
+                    <p className="duel-qr-hint">Scan to join</p>
+                  </div>
                   <p className="duel-waiting-text">
                     <span className="duel-spinner">⏳</span> Waiting for opponent to join…
                   </p>

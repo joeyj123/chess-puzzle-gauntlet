@@ -13,12 +13,37 @@
  *   onClose     - called when overlay should be dismissed
  */
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, Component } from 'react'
 import { Chess } from 'chess.js'
 import { Chessboard } from 'react-chessboard'
 import { getBoardTheme } from './data/boardThemes'
 import { playCorrect, playWrong, playSolved } from './sounds'
 import { supabase } from './supabaseClient'
+import QRShareCode from './QRShareCode'
+
+// ── Local error boundary ──────────────────────────────────────────────────────
+class DuelErrorBoundary extends Component {
+  state = { crashed: false }
+  static getDerivedStateFromError() { return { crashed: true } }
+  componentDidCatch(err) { console.error('[MultiplayerDuel] render error:', err) }
+  render() {
+    if (this.state.crashed) {
+      return (
+        <div className="duel-overlay">
+          <div className="duel-unconfigured">
+            <div className="duel-unconfigured-icon">⚠️</div>
+            <h2>Connection error</h2>
+            <p>Something went wrong with the game. Please try again.</p>
+            <button className="duel-btn duel-btn-primary" onClick={this.props.onClose}>
+              Back
+            </button>
+          </div>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
 
 const MIN_BOARD = 160
 
@@ -64,7 +89,15 @@ function getShareUrl(roomCode) {
 // 'playing'    → solving the puzzle
 // 'results'    → finished, show winner
 
-export default function MultiplayerDuel({ allPuzzles, settings, initialRoom, onClose }) {
+export default function MultiplayerDuel(props) {
+  return (
+    <DuelErrorBoundary onClose={props.onClose}>
+      <MultiplayerDuelGame {...props} />
+    </DuelErrorBoundary>
+  )
+}
+
+function MultiplayerDuelGame({ allPuzzles, settings, initialRoom, onClose }) {
   const myId = useRef(getOrCreatePlayerId())
 
   // ── Connection state ────────────────────────────────────────────────────
@@ -501,6 +534,10 @@ export default function MultiplayerDuel({ allPuzzles, settings, initialRoom, onC
                     </button>
                   </div>
                   <div className="duel-room-code">Room: <strong>{roomCode}</strong></div>
+                  <div className="duel-qr-wrap">
+                    <QRShareCode url={shareUrl} size={160} />
+                    <p className="duel-qr-hint">Scan to join</p>
+                  </div>
                   <p className="duel-waiting-text">
                     <span className="duel-spinner">⏳</span> Waiting for opponent to join…
                   </p>

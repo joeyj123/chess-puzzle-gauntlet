@@ -33,7 +33,16 @@ implementing items from a tier. Items move to "Done" once shipped.
       times. Backend: Supabase free tier (Realtime channels + postgres_changes).
       No accounts required — anonymous player IDs in localStorage. See
       `MULTIPLAYER_SETUP.md` for Supabase setup steps.
-- [ ] Wordle-style shareable result summary (can now pair with duel results)
+- [x] Live 1v1 chess game (2026-06-16) — full chess game against a friend via
+      shareable `?chess=CODE` link. Host plays White, guest plays Black. Real-time
+      move sync via Supabase Realtime (`chess_games` table). Features: click-to-move
+      + drag-and-drop, legal move dots, last-move highlight, check highlight (red
+      king + pulsing warning), captured pieces display, resign with confirmation.
+      Launched from ☰ menu → "♟ Play Chess".
+- [ ] Time controls / chess clock (follow-up to live chess)
+- [ ] Draw offers (follow-up to live chess)
+- [ ] Move history / notation panel (follow-up to live chess)
+- [ ] Wordle-style shareable result summary (pairs well with duel results)
 - [ ] Friend system (usernames, invite by username, match history) — Tier 4 stretch
 
 ## Done
