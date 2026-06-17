@@ -5,3 +5,5 @@ dist/
 .DS_Store
 .env.local
 .env*.local
+# Auto-copied from node_modules/stockfish on build
+public/stockfish.js

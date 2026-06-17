@@ -136,7 +136,7 @@
   border: 1px solid var(--surface);
 }
 
-/* Full-screen overlay — covers the entire app (board + everything else)
+/* Full-screen overlay ? covers the entire app (board + everything else)
    while the menu is open, and contains either the top-level menu list or
    whichever panel (Stats / Achievements / Settings) is currently active. */
 .menu-overlay {
@@ -616,12 +616,12 @@
   width: 100%;
   max-width: 480px;
   /* Grow/shrink to fill whatever vertical space is left after the header,
-     puzzle info, controls, and feedback area take their natural height —
+     puzzle info, controls, and feedback area take their natural height ?
      App.jsx then measures this box and gives the board an explicit pixel
      size that fits both the available width AND height, so nothing ever
      overflows and the page never needs to scroll. */
   flex: 1 1 0;
-  /* Floor matches the JS `MIN_BOARD` constant in App.jsx — guarantees this
+  /* Floor matches the JS `MIN_BOARD` constant in App.jsx ? guarantees this
      box's rendered height is never 0, so the board-sizing effect always has
      a real, non-zero rect to measure (and the board itself is never fully
      clipped by `overflow: hidden` below). */
@@ -964,7 +964,7 @@
   .explain-step-why { font-size: .81rem; }
 }
 
-/* ── Puzzle Rush ──────────────────────────────────────────────────────────── */
+/* ?? Puzzle Rush ???????????????????????????????????????????????????????????? */
 
 .rush-overlay {
   position: fixed;
@@ -989,7 +989,7 @@
   gap: 1rem;
 }
 
-/* ── Start / Results shared header ── */
+/* ?? Start / Results shared header ?? */
 .rush-close-btn {
   align-self: flex-end;
   background: none;
@@ -1026,7 +1026,7 @@
   font-weight: 600;
 }
 
-/* ── Duration picker ── */
+/* ?? Duration picker ?? */
 .rush-duration-row {
   display: flex;
   gap: .75rem;
@@ -1060,7 +1060,7 @@
   margin-top: .5rem;
 }
 
-/* ── Playing HUD ── */
+/* ?? Playing HUD ?? */
 .rush-playing {
   justify-content: flex-start;
   gap: .75rem;
@@ -1117,7 +1117,7 @@
   justify-content: center;
 }
 
-/* ── Results ── */
+/* ?? Results ?? */
 .rush-result-score {
   font-size: 5rem;
   font-weight: 800;
@@ -1153,7 +1153,7 @@
 }
 .rush-result-actions .btn { width: 100%; }
 
-/* ── Leaderboard ── */
+/* ?? Leaderboard ?? */
 .rush-leaderboard {
   width: 100%;
   max-width: 320px;
@@ -1195,9 +1195,9 @@
   font-weight: 600;
 }
 
-.rush-lb-row:nth-child(2) .rush-lb-rank { color: #fbbf24; }  /* gold  — 1st */
-.rush-lb-row:nth-child(3) .rush-lb-rank { color: #94a3b8; }  /* silver — 2nd */
-.rush-lb-row:nth-child(4) .rush-lb-rank { color: #cd7c3f; }  /* bronze — 3rd */
+.rush-lb-row:nth-child(2) .rush-lb-rank { color: #fbbf24; }  /* gold  ? 1st */
+.rush-lb-row:nth-child(3) .rush-lb-rank { color: #94a3b8; }  /* silver ? 2nd */
+.rush-lb-row:nth-child(4) .rush-lb-rank { color: #cd7c3f; }  /* bronze ? 3rd */
 
 .rush-lb-score {
   font-weight: 700;
@@ -1520,7 +1520,7 @@
 
 /* -- Live Chess Game --------------------------------------------------------- */
 
-/* Full-screen chess overlay � extends .duel-overlay layout with column flex */
+/* Full-screen chess overlay ? extends .duel-overlay layout with column flex */
 .chess-game-overlay {
   gap: .4rem;
   padding-top: max(48px, env(safe-area-inset-top, 48px));
@@ -1528,37 +1528,35 @@
 }
 
 /* -- Turn indicator -- */
-.chess-turn-indicator {
+.chess-status-bar {
   font-size: .95rem;
   font-weight: 700;
   letter-spacing: .02em;
   padding: .35rem 1rem;
   border-radius: 20px;
-  transition: background .2s, color .2s;
+  border: 1px solid transparent;
   max-width: 480px;
   width: 100%;
   text-align: center;
+  transition: background .2s, color .2s, border-color .2s;
 }
 
-.chess-turn-indicator.my-turn {
+.chess-status-bar.my-turn {
   background: rgba(96,165,250,.18);
   color: #93c5fd;
+  border-color: transparent;
 }
 
-.chess-turn-indicator.their-turn {
+.chess-status-bar.their-turn {
   background: var(--surface, #16213e);
   color: var(--text-muted, #94a3b8);
+  border-color: transparent;
 }
 
-.chess-turn-indicator.in-check {
-  background: rgba(239,68,68,.2);
+.chess-status-bar.in-check {
+  background: rgba(239,68,68,.15);
   color: #f87171;
-  animation: chess-check-pulse 1s ease infinite;
-}
-
-@keyframes chess-check-pulse {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: .65; }
+  border-color: rgba(239,68,68,.4);
 }
 
 /* -- Captured pieces row -- */
@@ -1608,3 +1606,254 @@
   font-size: .95rem;
   margin: -.5rem 0 0;
 }
+
+/* ?? duel-btn variants ?????????????????????????????????????????????????????? */
+.duel-btn-secondary {
+  background: rgba(96,165,250,.15);
+  border: 1px solid rgba(96,165,250,.4);
+  color: #93c5fd;
+  border-radius: 10px;
+  padding: .6rem 1.4rem;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s;
+}
+.duel-btn-secondary:hover { background: rgba(96,165,250,.25); }
+
+.duel-btn-ghost {
+  background: transparent;
+  border: 1px solid var(--border, #334155);
+  color: var(--text-muted, #94a3b8);
+  border-radius: 10px;
+  padding: .6rem 1.4rem;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: border-color .15s;
+}
+.duel-btn-ghost:hover { border-color: #94a3b8; }
+
+/* ?? Computer Chess ? setup ???????????????????????????????????????????????? */
+.computer-setup {
+  gap: .75rem;
+  max-width: 360px;
+  width: 100%;
+}
+
+.computer-setup-label {
+  font-size: .8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--text-muted, #94a3b8);
+  margin: .25rem 0 0;
+  align-self: flex-start;
+}
+
+.computer-difficulty-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: .5rem;
+  width: 100%;
+}
+
+.computer-diff-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: .15rem;
+  background: var(--surface, #16213e);
+  border: 2px solid transparent;
+  border-radius: 10px;
+  padding: .5rem .25rem;
+  cursor: pointer;
+  transition: border-color .15s, background .15s;
+}
+.computer-diff-btn:hover  { background: rgba(255,255,255,.06); }
+.computer-diff-btn.selected { border-color: #60a5fa; background: rgba(96,165,250,.12); }
+
+.computer-diff-name { font-size: .85rem; font-weight: 700; color: var(--text, #e2e8f0); }
+.computer-diff-elo  { font-size: .7rem;  color: var(--text-muted, #94a3b8); }
+
+.computer-color-row {
+  display: flex;
+  gap: .5rem;
+  width: 100%;
+}
+
+.computer-color-btn {
+  flex: 1;
+  padding: .5rem .25rem;
+  border-radius: 10px;
+  border: 2px solid transparent;
+  background: var(--surface, #16213e);
+  color: var(--text, #e2e8f0);
+  font-size: .85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color .15s;
+}
+.computer-color-btn:hover   { background: rgba(255,255,255,.06); }
+.computer-color-btn.selected { border-color: #60a5fa; }
+
+.computer-start-btn { margin-top: .5rem; width: 100%; }
+
+/* ?? Computer Chess ? playing ?????????????????????????????????????????????? */
+.chess-opponent-bar {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  font-size: .9rem;
+  color: var(--text-muted, #94a3b8);
+  padding: .1rem 0;
+}
+.chess-opponent-elo { font-size: .8rem; color: var(--text-muted, #94a3b8); }
+.chess-thinking-dots {
+  font-size: .8rem;
+  color: #60a5fa;
+  animation: chess-check-pulse 1s ease infinite;
+}
+
+.computer-diff-played {
+  font-size: .85rem;
+  color: var(--text-muted, #94a3b8);
+  margin: -.25rem 0 .25rem;
+}
+
+/* ?? Game Review overlay ??????????????????????????????????????????????????? */
+.review-overlay {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: .4rem;
+  padding: .75rem .75rem 1rem;
+  overflow-y: auto;
+}
+
+.review-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: .75rem;
+  text-align: center;
+  padding: 2rem 1rem;
+}
+.review-loading-icon { font-size: 2.5rem; }
+.review-loading-sub  { color: var(--text-muted, #94a3b8); font-size: .95rem; }
+.review-loading-hint { color: var(--text-muted, #94a3b8); font-size: .8rem; }
+
+.review-progress-bar {
+  width: min(300px, 80vw);
+  height: 6px;
+  background: var(--surface, #16213e);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.review-progress-fill {
+  height: 100%;
+  background: #60a5fa;
+  border-radius: 3px;
+  transition: width .3s;
+}
+
+.review-accuracy-bar {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  width: 100%;
+  max-width: 480px;
+  justify-content: center;
+}
+.review-acc-pill {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: var(--surface, #16213e);
+  border-radius: 10px;
+  padding: .35rem .75rem;
+  min-width: 80px;
+}
+.review-acc-pill.you { border: 1px solid rgba(96,165,250,.4); }
+.review-acc-label { font-size: .7rem; color: var(--text-muted, #94a3b8); }
+.review-acc-value { font-size: 1.2rem; font-weight: 700; color: var(--text, #e2e8f0); }
+.review-acc-sep   { font-size: .75rem; color: var(--text-muted, #94a3b8); text-align: center; }
+
+.review-move-badge {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  font-size: .9rem;
+  min-height: 1.4rem;
+}
+.review-move-symbol { font-weight: 900; font-size: 1rem; }
+.review-move-san    { font-weight: 700; color: var(--text, #e2e8f0); }
+.review-move-label  { color: var(--text-muted, #94a3b8); font-size: .8rem; }
+.review-move-loss   { color: var(--text-muted, #94a3b8); font-size: .75rem; }
+
+.review-best-move-hint {
+  font-size: .8rem;
+  color: var(--text-muted, #94a3b8);
+  text-align: center;
+}
+.review-best-arrow { color: #22c55e; }
+
+.review-nav {
+  display: flex;
+  align-items: center;
+  gap: .35rem;
+}
+.review-nav-btn {
+  background: var(--surface, #16213e);
+  border: 1px solid var(--border, #334155);
+  color: var(--text, #e2e8f0);
+  border-radius: 6px;
+  padding: .3rem .6rem;
+  font-size: .9rem;
+  cursor: pointer;
+  transition: background .12s;
+}
+.review-nav-btn:hover:not(:disabled) { background: rgba(255,255,255,.08); }
+.review-nav-btn:disabled { opacity: .35; cursor: default; }
+.review-nav-pos { font-size: .85rem; color: var(--text-muted, #94a3b8); min-width: 60px; text-align: center; }
+
+.review-move-list {
+  width: 100%;
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+  gap: .15rem;
+  max-height: 160px;
+  overflow-y: auto;
+  background: var(--surface, #16213e);
+  border-radius: 10px;
+  padding: .5rem;
+}
+.review-move-row {
+  display: flex;
+  align-items: center;
+  gap: .2rem;
+}
+.review-move-num {
+  font-size: .75rem;
+  color: var(--text-muted, #94a3b8);
+  width: 22px;
+  text-align: right;
+  flex-shrink: 0;
+}
+.review-move-cell {
+  display: flex;
+  align-items: center;
+  gap: .2rem;
+  flex: 1;
+  border: 1.5px solid transparent;
+  border-radius: 5px;
+  padding: .15rem .35rem;
+  cursor: pointer;
+  background: transparent;
+  transition: background .1s;
+}
+.review-move-cell:hover:not(.empty)  { background: rgba(255,255,255,.06); }
+.review-move-cell.active             { background: rgba(96,165,250,.12); }
+.review-move-cell.empty              { cursor: default; }
+.review-move-san-cell  { font-size: .85rem; font-weight: 600; color: var(--text, #e2e8f0); }
+.review-move-sym-cell  { font-size: .75rem; font-weight: 700; }

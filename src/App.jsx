@@ -13,6 +13,8 @@ import { buildExplainSteps } from './data/explanations'
 import PuzzleRush from './PuzzleRush'
 import MultiplayerDuel from './MultiplayerDuel'
 import LiveChess from './LiveChess'
+import ComputerChess from './ComputerChess'
+import GameReview from './GameReview'
 import './App.css'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -80,8 +82,12 @@ export default function App() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [activePanel, setActivePanel] = useState(null)
   const [rushOpen, setRushOpen] = useState(false)
-  const [duelOpen,  setDuelOpen]  = useState(false)
-  const [chessOpen, setChessOpen] = useState(false)
+  const [duelOpen,      setDuelOpen]      = useState(false)
+  const [chessOpen,     setChessOpen]     = useState(false)
+  const [computerOpen,  setComputerOpen]  = useState(false)
+  const [reviewOpen,    setReviewOpen]    = useState(false)
+  const [reviewPgn,     setReviewPgn]     = useState('')
+  const [reviewColor,   setReviewColor]   = useState('w')
   // URL params: ?room=CODE opens the puzzle duel, ?chess=CODE opens a live chess game
   const [initialRoom]  = useState(() => new URLSearchParams(window.location.search).get('room'))
   const [initialChess] = useState(() => new URLSearchParams(window.location.search).get('chess'))
@@ -905,6 +911,37 @@ export default function App() {
               window.history.replaceState({}, '', window.location.pathname)
             }
           }}
+          onReviewGame={(pgn, color) => {
+            setReviewPgn(pgn)
+            setReviewColor(color)
+            setChessOpen(false)
+            if (initialChess) window.history.replaceState({}, '', window.location.pathname)
+            setReviewOpen(true)
+          }}
+        />
+      )}
+
+      {/* ── vs Computer overlay ── */}
+      {computerOpen && (
+        <ComputerChess
+          settings={settings}
+          onClose={() => setComputerOpen(false)}
+          onReviewGame={(pgn, color) => {
+            setReviewPgn(pgn)
+            setReviewColor(color)
+            setComputerOpen(false)
+            setReviewOpen(true)
+          }}
+        />
+      )}
+
+      {/* ── Game Review overlay ── */}
+      {reviewOpen && (
+        <GameReview
+          pgn={reviewPgn}
+          playerColor={reviewColor}
+          settings={settings}
+          onClose={() => setReviewOpen(false)}
         />
       )}
 
@@ -1011,6 +1048,13 @@ export default function App() {
               >
                 <span className="menu-item-icon">♟</span>
                 <span className="menu-item-label">Play Chess</span>
+              </button>
+              <button
+                className="menu-item"
+                onClick={() => { setComputerOpen(true); setMenuOpen(false) }}
+              >
+                <span className="menu-item-icon">🤖</span>
+                <span className="menu-item-label">vs Computer</span>
               </button>
               <button className="menu-item" onClick={() => setActivePanel('stats')}>
                 <span className="menu-item-icon">📊</span>

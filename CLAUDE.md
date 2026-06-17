@@ -20,6 +20,13 @@ When the user says **"NEW CHAT"**, before ending the session:
 In a new chat, the user attaches/selects the Chess Puzzle App folder and says
 to check PROGRESS.md for context.
 
+## Debugging convention — ALWAYS DO THIS
+After every fix or feature implementation, before calling it done:
+1. Grep the changed files for obvious mistakes (missing `.then()` on Supabase calls, raw color strings passed as style objects, un-guarded null accesses).
+2. Confirm all new Supabase `.update()`/`.insert()` calls have `.then(() => {})` or are awaited.
+3. Confirm any new style props passed to `react-chessboard` are objects (`{ backgroundColor: color }`) not raw strings.
+4. If a render can throw (chess.js calls, third-party canvas ops), wrap in try-catch.
+
 ## Files
 - `lichess_db_puzzle.csv` (1.1GB) — raw source data for `public/puzzles.json`,
   gitignored, not needed unless regenerating the puzzle set.

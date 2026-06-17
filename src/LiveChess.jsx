@@ -105,7 +105,7 @@ export default function LiveChess(props) {
   )
 }
 
-function LiveChessGame({ settings, initialRoom, onClose }) {
+function LiveChessGame({ settings, initialRoom, onClose, onReviewGame }) {
   const myId = useRef(getOrCreatePlayerId())
 
   // ── Connection state ─────────────────────────────────────────────────────
@@ -575,6 +575,14 @@ function LiveChessGame({ settings, initialRoom, onClose }) {
             <p className="chess-result-reason">{result.reason}</p>
           )}
           <div className="duel-results-actions">
+            {onReviewGame && (
+              <button
+                className="duel-btn duel-btn-secondary"
+                onClick={() => onReviewGame(game.pgn(), role === 'host' ? 'w' : 'b')}
+              >
+                📊 Review Game
+              </button>
+            )}
             <button className="duel-btn duel-btn-primary" onClick={onClose}>
               Back to Solo
             </button>
@@ -596,13 +604,9 @@ function LiveChessGame({ settings, initialRoom, onClose }) {
         ))}
       </div>
 
-      {/* Turn / status indicator */}
-      <div className={`chess-turn-indicator ${myTurn ? 'my-turn' : 'their-turn'} ${inCheck ? 'in-check' : ''}`}>
-        {inCheck
-          ? '⚠️ You are in check!'
-          : myTurn
-            ? "Your turn"
-            : "Opponent's turn…"}
+      {/* Turn / status indicator — single element, no flash */}
+      <div className={`chess-status-bar ${inCheck ? 'in-check' : myTurn ? 'my-turn' : 'their-turn'}`}>
+        {inCheck ? '⚠️ You are in check!' : myTurn ? 'Your turn' : "Opponent's turn…"}
       </div>
 
       {/* Board */}
