@@ -653,8 +653,8 @@ function MultiplayerDuelGame({ allPuzzles, settings, initialRoom, onClose }) {
             boardOrientation={orientation}
             boardWidth={boardWidth}
             customBoardStyle={{ borderRadius: '4px', boxShadow: '0 4px 24px rgba(0,0,0,0.5)' }}
-            customLightSquareStyle={boardTheme.light}
-            customDarkSquareStyle={boardTheme.dark}
+            customLightSquareStyle={{ backgroundColor: boardTheme.light }}
+            customDarkSquareStyle={{ backgroundColor: boardTheme.dark }}
             customSquareStyles={getCustomSquareStyles()}
             animationDuration={150}
             arePiecesDraggable={mySolvedMs == null}
