@@ -28,11 +28,22 @@ CREATE POLICY "profiles: own row update"
   ON profiles FOR UPDATE
   USING (auth.uid() = id);
 
--- Auto-insert a profile row when a new user signs in
-CREATE OR REPLACE FUNCTION handle_new_user()
-RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER AS $$
+CREATE POLICY "profiles: own row insert"
+  ON profiles FOR INSERT
+  WITH CHECK (auth.uid() = id);
+
+-- Auto-insert a profile row when a new user signs in.
+-- Grants at the bottom are required or anonymous sign-in returns HTTP 500.
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
 BEGIN
-  INSERT INTO profiles (id) VALUES (NEW.id) ON CONFLICT DO NOTHING;
+  INSERT INTO public.profiles (id)
+  VALUES (NEW.id)
+  ON CONFLICT (id) DO NOTHING;
   RETURN NEW;
 END;
 $$;
@@ -40,7 +51,11 @@ $$;
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE PROCEDURE handle_new_user();
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+GRANT USAGE ON SCHEMA public TO supabase_auth_admin;
+GRANT EXECUTE ON FUNCTION public.handle_new_user() TO supabase_auth_admin;
+GRANT INSERT ON TABLE public.profiles TO supabase_auth_admin;
 
 -- ── game_history ──────────────────────────────────────────────────────────────
 -- One row per completed game (vs Computer for now; expand to multiplayer later).

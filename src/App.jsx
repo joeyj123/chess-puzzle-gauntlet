@@ -64,7 +64,7 @@ export default function App() {
   const [loadError,   setLoadError]   = useState(null)
   const [noMatch,     setNoMatch]     = useState(false)
   const [settings,    updateSettings] = useSettings()
-  const { user, isAnonymous, linkGoogle } = useAuth()
+  const { user, isAnonymous, authError, signInAnonymously, linkGoogle } = useAuth()
   const [hintLevel,   setHintLevel]   = useState(0)
   const [history,     setHistory]     = useState([])
   const [wrongFen,    setWrongFen]    = useState(null)
@@ -1300,9 +1300,20 @@ export default function App() {
                     Game history is synced to your account.
                   </p>
                 ) : supabaseClient ? (
-                  <p className="settings-hint">
-                    Sign-in temporarily unavailable — please refresh the page.
-                  </p>
+                  <>
+                    <p className="settings-hint">
+                      Guest sign-in failed{authError ? `: ${authError}` : ''}. Game history won't sync until this works.
+                    </p>
+                    <button
+                      className="btn link-account-btn"
+                      onClick={async () => {
+                        const signedIn = await signInAnonymously()
+                        if (!signedIn) alert('Still could not sign in. Run supabase/fix-auth-trigger.sql in the Supabase SQL Editor, then try again.')
+                      }}
+                    >
+                      Retry sign-in
+                    </button>
+                  </>
                 ) : (
                   <p className="settings-hint">Sign-in unavailable (Supabase not configured).</p>
                 )}
