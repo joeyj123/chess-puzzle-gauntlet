@@ -64,7 +64,7 @@ export default function App() {
   const [loadError,   setLoadError]   = useState(null)
   const [noMatch,     setNoMatch]     = useState(false)
   const [settings,    updateSettings] = useSettings()
-  const { user, isAnonymous, authError, signInAnonymously, linkGoogle } = useAuth()
+  const { user, isAnonymous, authError, googleAlreadyLinked, signInAnonymously, signInWithGoogle, linkGoogle } = useAuth()
   const [hintLevel,   setHintLevel]   = useState(0)
   const [history,     setHistory]     = useState([])
   const [wrongFen,    setWrongFen]    = useState(null)
@@ -1281,21 +1281,40 @@ export default function App() {
                 {isAnonymous ? (
                   <>
                     <p className="settings-hint">
-                      You're playing as a guest. Link your Google account to sync
-                      game history and stats across devices without losing anything.
+                      {googleAlreadyLinked || (authError && authError.includes('already linked'))
+                        ? 'Your Google account is already linked from a previous sign-in. Use "Sign in with Google" to open that account.'
+                        : "You're playing as a guest. Link your Google account to sync game history and stats across devices."}
                     </p>
+                    {authError && googleAlreadyLinked && (
+                      <p className="settings-hint" style={{ color: '#fbbf24' }}>{authError}</p>
+                    )}
                     <button
                       className="btn link-account-btn"
                       onClick={async () => {
-                        const { error } = await linkGoogle()
+                        const { error } = await signInWithGoogle()
                         if (error) {
                           const msg = typeof error === 'string' ? error : error.message
-                          alert('Could not link Google account: ' + msg)
+                          alert('Could not sign in with Google: ' + msg)
                         }
                       }}
                     >
-                      🔗 Link Google Account
+                      🔑 Sign in with Google
                     </button>
+                    {!googleAlreadyLinked && (
+                      <button
+                        className="btn btn-secondary"
+                        style={{ marginTop: '0.5rem', width: '100%' }}
+                        onClick={async () => {
+                          const { error } = await linkGoogle()
+                          if (error) {
+                            const msg = typeof error === 'string' ? error : error.message
+                            alert('Could not link Google account: ' + msg)
+                          }
+                        }}
+                      >
+                        🔗 Link Google Account (first time on this device)
+                      </button>
+                    )}
                   </>
                 ) : user ? (
                   <p className="settings-hint">

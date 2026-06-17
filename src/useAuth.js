@@ -5,6 +5,9 @@
  * has a persistent `user.id` without requiring registration. The anonymous
  * identity can later be upgraded to a permanent Google account via
  * `linkGoogle()` without losing any stored data.
+ *
+ * If Google was already linked on a prior attempt (identity_already_exists),
+ * use `signInWithGoogle()` to sign into that existing account instead.
  */
 
 import { useEffect, useState, useCallback } from 'react'
@@ -15,7 +18,6 @@ async function ensureProfile(userId) {
   await supabase.from('profiles').upsert({ id: userId }, { onConflict: 'id' }).then(() => {})
 }
 
-/** True when the user has linked Google (or any non-anonymous provider). */
 function userHasGoogle(user) {
   if (!user) return false
   return (user.identities ?? []).some(id => id.provider === 'google')
@@ -28,10 +30,39 @@ function userIsAnonymous(user) {
     (user.identities ?? []).every(id => id.provider === 'anonymous')
 }
 
+/** Read OAuth error params Supabase appends after a failed redirect. */
+function consumeOAuthError() {
+  const search = new URLSearchParams(window.location.search)
+  const hashRaw = window.location.hash.replace(/^#/, '')
+  const hash = new URLSearchParams(hashRaw)
+
+  const code = search.get('error_code') || hash.get('error_code')
+  const desc = (search.get('error_description') || hash.get('error_description') || '')
+    .replace(/\+/g, ' ')
+
+  if (!search.get('error') && !hash.get('error') && !code) return null
+
+  window.history.replaceState(null, '', window.location.pathname)
+  return { code, description: desc }
+}
+
+async function refreshUser() {
+  if (!supabase) return null
+  const { data: { user }, error } = await supabase.auth.getUser()
+  if (error) {
+    console.error('[Auth] getUser failed:', error.message)
+    return null
+  }
+  return user
+}
+
 export function useAuth() {
   const [user,      setUser]      = useState(null)
   const [loading,   setLoading]   = useState(true)
   const [authError, setAuthError] = useState(null)
+  const [googleAlreadyLinked, setGoogleAlreadyLinked] = useState(false)
+
+  const redirectTo = () => window.location.origin + window.location.pathname
 
   const signInAnonymously = useCallback(async () => {
     if (!supabase) {
@@ -54,6 +85,27 @@ export function useAuth() {
     return data.user
   }, [])
 
+  const signInWithGoogle = useCallback(async () => {
+    if (!supabase) return { error: { message: 'Supabase not configured' } }
+    setAuthError(null)
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: redirectTo(),
+        scopes: 'email profile',
+      },
+    })
+    if (error) {
+      console.error('[Auth] signInWithGoogle failed:', error.message)
+      return { data, error }
+    }
+    if (data?.url) {
+      window.location.href = data.url
+      return { data, error: null }
+    }
+    return { data, error: { message: 'No OAuth URL returned from Supabase' } }
+  }, [])
+
   useEffect(() => {
     if (!supabase) {
       setLoading(false)
@@ -63,10 +115,19 @@ export function useAuth() {
     let cancelled = false
 
     async function init() {
-      // Pick up session after Google OAuth redirect (tokens arrive in URL hash)
+      const oauthErr = consumeOAuthError()
+      if (oauthErr) {
+        if (oauthErr.code === 'identity_already_exists') {
+          setGoogleAlreadyLinked(true)
+          setAuthError('This Google account is already linked. Use "Sign in with Google" below.')
+        } else {
+          setAuthError(oauthErr.description || oauthErr.code || 'Sign-in failed')
+        }
+      }
+
       if (window.location.hash.includes('access_token')) {
         await supabase.auth.getSession()
-        window.history.replaceState(null, '', window.location.pathname + window.location.search)
+        window.history.replaceState(null, '', window.location.pathname)
       }
 
       const { data: { session }, error: sessionError } = await supabase.auth.getSession()
@@ -80,27 +141,33 @@ export function useAuth() {
       }
 
       if (session?.user) {
-        setUser(session.user)
-        await ensureProfile(session.user.id)
+        const fresh = await refreshUser()
+        if (!cancelled) {
+          setUser(fresh ?? session.user)
+          if (fresh) await ensureProfile(fresh.id)
+          if (userHasGoogle(fresh ?? session.user)) {
+            setGoogleAlreadyLinked(false)
+            setAuthError(null)
+          }
+        }
         setLoading(false)
         return
       }
 
-      // Retry a few times — free-tier projects can 500 while waking up
       for (let attempt = 0; attempt < 3; attempt++) {
         const { data, error } = await supabase.auth.signInAnonymously()
         if (cancelled) return
 
         if (!error && data.user) {
           setUser(data.user)
-          setAuthError(null)
+          if (!oauthErr) setAuthError(null)
           await ensureProfile(data.user.id)
           setLoading(false)
           return
         }
 
         console.error(`[Auth] anonymous sign-in attempt ${attempt + 1} failed:`, error?.message)
-        setAuthError(error?.message ?? 'Sign-in failed')
+        if (!oauthErr) setAuthError(error?.message ?? 'Sign-in failed')
         if (attempt < 2) await new Promise(r => setTimeout(r, 1500 * (attempt + 1)))
       }
 
@@ -109,10 +176,17 @@ export function useAuth() {
 
     init()
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!cancelled) {
-        setUser(session?.user ?? null)
-        if (session?.user) setAuthError(null)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (cancelled) return
+      if (session?.user) {
+        const fresh = await refreshUser()
+        setUser(fresh ?? session.user)
+        if (userHasGoogle(fresh ?? session.user)) {
+          setGoogleAlreadyLinked(false)
+          setAuthError(null)
+        }
+      } else {
+        setUser(null)
       }
     })
 
@@ -128,11 +202,10 @@ export function useAuth() {
       const signedIn = await signInAnonymously()
       if (!signedIn) return { error: { message: authError ?? 'Could not sign in' } }
     }
-    const redirectTo = window.location.origin + window.location.pathname
     const { data, error } = await supabase.auth.linkIdentity({
       provider: 'google',
       options: {
-        redirectTo,
+        redirectTo: redirectTo(),
         scopes: 'email profile',
       },
     })
@@ -140,7 +213,6 @@ export function useAuth() {
       console.error('[Auth] linkGoogle failed:', error.message)
       return { data, error }
     }
-    // linkIdentity returns a URL — must navigate there to start Google OAuth
     if (data?.url) {
       window.location.href = data.url
       return { data, error: null }
@@ -150,5 +222,14 @@ export function useAuth() {
 
   const isAnonymous = userIsAnonymous(user)
 
-  return { user, loading, authError, isAnonymous, signInAnonymously, linkGoogle }
+  return {
+    user,
+    loading,
+    authError,
+    googleAlreadyLinked,
+    isAnonymous,
+    signInAnonymously,
+    signInWithGoogle,
+    linkGoogle,
+  }
 }
