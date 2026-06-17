@@ -27,6 +27,20 @@ const DURATION_OPTIONS = [
   { label: '3 min', seconds: 180 },
   { label: '5 min', seconds: 300 },
 ]
+// Reusing the same detection logic as the main puzzle board
+function getPuzzleObjective(themes = []) {
+  for (let n = 1; n <= 5; n++) {
+    if (themes.includes(`mateIn${n}`)) return `Mate in ${n}`
+  }
+  if (themes.includes('mate'))      return 'Deliver Checkmate'
+  if (themes.includes('fork'))      return 'Find the Fork'
+  if (themes.includes('pin'))       return 'Find the Pin'
+  if (themes.includes('skewer'))    return 'Find the Skewer'
+  if (themes.includes('sacrifice')) return 'Find the Sacrifice'
+  if (themes.includes('endgame'))   return 'Win the Endgame'
+  return 'Find the Best Move'
+}
+
 const MAX_WRONG = 3
 
 function uciToObj(uci) {
@@ -378,6 +392,14 @@ export default function PuzzleRush({ allPuzzles, settings, bestScore, leaderboar
       {/* ── Playing screen ── */}
       {phase === 'playing' && game && puzzle && (
         <div className="rush-screen rush-playing">
+          {/* Objective + turn labels */}
+          <div className="rush-meta-bar">
+            <span className="rush-objective">{getPuzzleObjective(puzzle.themes)}</span>
+            <span className="rush-turn-label">
+              {orientation === 'white' ? '⬜ Your Turn: White' : '⬛ Your Turn: Black'}
+            </span>
+          </div>
+
           <div className="rush-hud">
             <div className={`rush-timer${isLow ? ' low' : ''}`}>
               {mins}:{secs}

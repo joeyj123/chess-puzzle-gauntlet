@@ -13,12 +13,12 @@ Everything is committed and live on Vercel **except** the final batch of changes
 Session 10 (see "Uncommitted changes" below — user was in the middle of pushing when
 the chat ended).
 
-## Uncommitted changes (Sessions 10 + 11) — run this to push everything
+## Uncommitted changes (Sessions 10 + 11 + 12) — run this to push everything
 
 ```
 npm install
 git add -A
-git commit -m "vs Computer + Game Review + QR code + Puzzle Rush click-to-move + fix thinking forever + 1.5s move cap"
+git commit -m "Anon auth + game history DB + Stockfish perf cap + Puzzle Rush labels + GameReview summaries"
 git push
 ```
 
@@ -142,6 +142,47 @@ git push
 5. **`src/ComputerChess.jsx`** — Passes `movetime: 1500` to `getBestMove`.
 
 6. **`DEBUG.md`** — Created. Full log of all bugs found + fixed across sessions.
+
+## Session 12 changes (2026-06-17)
+
+1. **`src/useStockfish.js`** — Depth capped at 12 for all levels. Default movetime
+   reduced from 1500 → 800 ms. `classifyMove` thresholds updated: 0–5 Best, 6–10
+   Excellent, 11–40 Good, 41–100 Inaccuracy, 101+ Blunder (Mistake category removed).
+   New export: `getClassificationSummary(cls, cpLoss)`.
+
+2. **`src/useAuth.js`** — New hook. Calls `signInAnonymously()` on first load if no
+   session exists. Exposes `{ user, loading, isAnonymous, linkGoogle }`. `linkGoogle`
+   uses `supabase.auth.linkIdentity({ provider: 'google' })`.
+
+3. **`src/App.jsx`** — Imports and calls `useAuth`. Passes `userId` to `<ComputerChess>`.
+   Settings panel: new "Account" section with "🔗 Link Google Account" button (shown
+   only when user is anonymous; shows signed-in email once linked).
+
+4. **`src/ComputerChess.jsx`** — Accepts `userId` prop. Saves completed game to
+   `game_history` Supabase table (fire-and-forget, never blocks UI). Unused
+   `classifyMove` import removed.
+
+5. **`src/PuzzleRush.jsx`** — Added `getPuzzleObjective(themes)` helper. Playing screen
+   now shows a `.rush-meta-bar` with the puzzle objective ("Mate in 2", "Find the Fork",
+   etc.) and "Your Turn: White/Black" turn label.
+
+6. **`src/GameReview.jsx`** — `CLASS_CONFIG` updated to remove 'mistake' (aligned with
+   new thresholds). Imports `getClassificationSummary`. Each move badge now shows a
+   one-sentence explanation of why the move was classified that way.
+
+7. **`supabase/schema.sql`** — New file. Full schema for `profiles` + `game_history`
+   with RLS policies and an auto-create-profile trigger. Run once in Supabase SQL Editor.
+   Also: enable Anonymous Sign-In in Auth → Providers first.
+
+8. **`src/App.css`** — `.rush-meta-bar`, `.rush-objective`, `.rush-turn-label`,
+   `.review-move-badge-wrap`, `.review-move-summary`, `.link-account-btn` styles added.
+
+## Supabase setup required for Session 12 features
+
+Before the new auth/history features go live:
+1. Supabase Dashboard → Authentication → Providers → Anonymous Sign-In → **enable**
+2. Authentication → Providers → Google → configure OAuth credentials
+3. SQL Editor → paste contents of `supabase/schema.sql` → Run
 
 ## Next steps
 1. Run the commit above (note: `npm install` was already done in Session 10 — not needed again unless fresh clone).

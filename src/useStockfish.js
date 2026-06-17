@@ -11,9 +11,9 @@
 
 import { useRef, useCallback } from 'react'
 
-// Map our 6 difficulty presets to Stockfish Skill Level (0–20)
-// 10 levels evenly spaced 500→2800 (step ≈ 255)
-// Skill Level (0-20) and depth are tuned together to hit those targets
+// Map our 10 difficulty presets to Stockfish Skill Level (0–20).
+// Depths are capped at 12 for mobile performance; movetime (800 ms) is
+// the real guard — Stockfish stops at whichever limit fires first.
 export const DIFFICULTY_LEVELS = [
   { label: 'Beginner',         skill: 0,  elo: '500',  depth: 1  },
   { label: 'Novice',           skill: 2,  elo: '750',  depth: 2  },
@@ -22,19 +22,43 @@ export const DIFFICULTY_LEVELS = [
   { label: 'Club',             skill: 9,  elo: '1500', depth: 7  },
   { label: 'Strong Club',      skill: 11, elo: '1750', depth: 9  },
   { label: 'Advanced',         skill: 13, elo: '2000', depth: 11 },
-  { label: 'Expert',           skill: 15, elo: '2250', depth: 14 },
-  { label: 'Candidate Master', skill: 17, elo: '2500', depth: 16 },
-  { label: 'Master',           skill: 20, elo: '2800', depth: 18 },
+  { label: 'Expert',           skill: 15, elo: '2250', depth: 12 },
+  { label: 'Candidate Master', skill: 17, elo: '2500', depth: 12 },
+  { label: 'Master',           skill: 20, elo: '2800', depth: 12 },
 ]
 
-// Centipawn loss → move classification
+/**
+ * Centipawn loss → move classification.
+ * Thresholds: 0–5 Best · 6–10 Excellent · 11–40 Good ·
+ *             41–100 Inaccuracy · 101+ Blunder
+ */
 export function classifyMove(cpLoss) {
-  if (cpLoss <= 5)   return { label: 'Best',        symbol: '!',   cls: 'best' }
-  if (cpLoss <= 15)  return { label: 'Excellent',   symbol: '!',   cls: 'excellent' }
-  if (cpLoss <= 30)  return { label: 'Good',        symbol: '✓',   cls: 'good' }
-  if (cpLoss <= 60)  return { label: 'Inaccuracy',  symbol: '?',   cls: 'inaccuracy' }
-  if (cpLoss <= 120) return { label: 'Mistake',     symbol: '??',  cls: 'mistake' }
-  return                    { label: 'Blunder',     symbol: '???', cls: 'blunder' }
+  if (cpLoss <= 5)   return { label: 'Best',       symbol: '!!', cls: 'best'       }
+  if (cpLoss <= 10)  return { label: 'Excellent',  symbol: '!',  cls: 'excellent'  }
+  if (cpLoss <= 40)  return { label: 'Good',       symbol: '✓',  cls: 'good'       }
+  if (cpLoss <= 100) return { label: 'Inaccuracy', symbol: '?!', cls: 'inaccuracy' }
+  return                    { label: 'Blunder',    symbol: '??', cls: 'blunder'    }
+}
+
+/**
+ * Returns a one-sentence explanation of a move classification for display
+ * in the Game Review panel.
+ */
+export function getClassificationSummary(cls, cpLoss) {
+  switch (cls) {
+    case 'best':
+      return 'Perfect move — the engine agrees this is the best continuation.'
+    case 'excellent':
+      return `Excellent move with only a ${cpLoss} centipawn loss — nearly optimal.`
+    case 'good':
+      return `Solid move. A ${cpLoss} centipawn loss is acceptable in most positions.`
+    case 'inaccuracy':
+      return `Slight inaccuracy (−${cpLoss} cp) — a better option was available.`
+    case 'blunder':
+      return `Blunder! This move loses ${cpLoss} centipawns and significantly changes the evaluation.`
+    default:
+      return ''
+  }
 }
 
 // Per-move accuracy score (0–100)
@@ -77,7 +101,7 @@ export function useStockfish() {
   }, [send])
 
   /** Returns best move UCI string (e.g. "e2e4") or null */
-  const getBestMove = useCallback((fen, depth = 12, movetime = 1500) => {
+  const getBestMove = useCallback((fen, depth = 12, movetime = 800) => {
     return new Promise((resolve) => {
       const w = getWorker()
       if (!w) { resolve(null); return }

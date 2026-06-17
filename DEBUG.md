@@ -4,6 +4,41 @@ Bugs found and fixed. Newest at the top.
 
 ---
 
+## Session 12 — 2026-06-17
+
+### Improvement: Stockfish depth capped at 12 for mobile performance
+Previous depths of 14, 16, 18 for Expert/Candidate Master/Master could cause
+long delays or dropped frames on mobile devices. All levels now cap at 12.
+movetime reduced from 1500 → 800 ms — Stockfish stops at whichever fires first.
+Stockfish already ran in a Web Worker (`new Worker('/stockfish.js')`) and
+still does — the UI thread is never blocked.
+
+### Fix: `classifyMove` thresholds updated + Mistake category removed
+Old thresholds had a "Mistake" band (60–120 cp loss). New spec:
+- 0–5 cp: Best (`!!`)
+- 6–10 cp: Excellent (`!`)
+- 11–40 cp: Good (`✓`)
+- 41–100 cp: Inaccuracy (`?!`)
+- 101+ cp: Blunder (`??`)
+`CLASS_CONFIG` in `GameReview.jsx` updated to match.
+
+### Feature: Anonymous authentication + game history
+- `useAuth.js` — new hook; signs in anonymously on first load, exposes `linkGoogle()`.
+- `supabase/schema.sql` — `profiles` + `game_history` tables with RLS, auto-profile trigger.
+- `ComputerChess.jsx` — saves completed games to `game_history` (fire-and-forget).
+- `App.jsx` Settings — "Link Google Account" button upgrades anon → persistent identity.
+
+### Feature: Puzzle Rush — turn label + objective label
+`onSquareClick` in PuzzleRush was already fixed (Session 11). This session adds
+the `.rush-meta-bar` above the HUD showing the puzzle objective and active color.
+
+### Feature: GameReview — dynamic move classification summaries
+Each move badge now shows a one-sentence `getClassificationSummary` explanation
+(e.g. "Blunder! This move loses 134 centipawns…") so the review is readable
+without chess knowledge.
+
+---
+
 ## Session 11 — 2026-06-17 (continued)
 
 ### Improvement: Computer move capped at 1.5 seconds

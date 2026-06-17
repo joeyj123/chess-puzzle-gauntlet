@@ -14,7 +14,8 @@ import { Chess } from 'chess.js'
 import { Chessboard } from 'react-chessboard'
 import { getBoardTheme } from './data/boardThemes'
 import { playCorrect, playWrong, playSolved } from './sounds'
-import { useStockfish, DIFFICULTY_LEVELS, classifyMove } from './useStockfish'
+import { useStockfish, DIFFICULTY_LEVELS } from './useStockfish'
+import { supabase } from './supabaseClient'
 
 const MIN_BOARD = 160
 
@@ -55,8 +56,9 @@ export default function ComputerChess(props) {
     </ComputerChessErrorBoundary>
   )
 }
+// ComputerChessGame props: settings, userId, onClose, onReviewGame
 
-function ComputerChessGame({ settings, onClose, onReviewGame }) {
+function ComputerChessGame({ settings, userId, onClose, onReviewGame }) {
   const [phase, setPhase]         = useState('setup')   // 'setup' | 'playing' | 'results'
   const [diffIdx, setDiffIdx]     = useState(1)          // index into DIFFICULTY_LEVELS
   const [playerColor, setPlayerColor] = useState('white') // 'white' | 'black' | 'random'
@@ -141,7 +143,7 @@ function ComputerChessGame({ settings, onClose, onReviewGame }) {
       setThinking(true)
       let uci = null
       try {
-        uci = await getBestMove(currentGame.fen(), lv.depth, 1500)
+        uci = await getBestMove(currentGame.fen(), lv.depth, 800)
       } catch (err) {
         console.error('[ComputerChess] getBestMove error:', err)
       }
@@ -199,7 +201,6 @@ function ComputerChessGame({ settings, onClose, onReviewGame }) {
     let winner = 'draw'
     let reason = 'Draw'
     if (g.isCheckmate()) {
-      // whoever just moved wins
       const justMoved = movedBy === 'human-moved' ? 'player' : 'computer'
       winner = justMoved
       reason = 'Checkmate'
@@ -213,9 +214,29 @@ function ComputerChessGame({ settings, onClose, onReviewGame }) {
       reason = '50-move rule'
     }
     if (winner !== 'draw' && settings.sounds) playSolved()
+
+    // Persist to game_history (fire-and-forget; never blocks the UI)
+    saveGameToHistory(g, winner, reason)
+
     setResult({ winner, reason })
     setPhase('results')
     return true
+  }
+
+  function saveGameToHistory(g, winner, reason) {
+    if (!supabase || !userId) return
+    const outcome = winner === 'player' ? 'win' : winner === 'computer' ? 'loss' : 'draw'
+    const level = DIFFICULTY_LEVELS[diffIdx]
+    supabase.from('game_history').insert({
+      user_id:       userId,
+      opponent_name: `Stockfish ${level.label} (${level.elo})`,
+      player_color:  humanColorRef.current === 'w' ? 'white' : 'black',
+      game_outcome:  outcome,
+      pgn_string:    g.pgn(),
+      accuracy_score: null,  // filled in by GameReview engine post-analysis
+    }).then(() => {}).catch(err => {
+      console.warn('[ComputerChess] saveGameToHistory failed:', err.message)
+    })
   }
 
   function handleResign() {

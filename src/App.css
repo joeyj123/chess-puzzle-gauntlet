@@ -360,6 +360,28 @@
   width: auto;
 }
 
+/* ── Link Google Account button ─────────────────────────────────────────────── */
+.link-account-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: .5rem;
+  width: 100%;
+  background: rgba(66, 133, 244, 0.12);
+  border: 1px solid rgba(66, 133, 244, 0.4);
+  color: #93c5fd;
+  font-weight: 600;
+  border-radius: 10px;
+  padding: .65rem 1.2rem;
+  font-size: .95rem;
+  cursor: pointer;
+  transition: background .15s, border-color .15s;
+}
+.link-account-btn:hover {
+  background: rgba(66, 133, 244, 0.22);
+  border-color: rgba(66, 133, 244, 0.65);
+}
+
 /* -- Stats overview & breakdown --------------------------------------------- */
 
 .stats-overview {
@@ -1058,6 +1080,33 @@
   min-width: 180px;
   font-size: 1.1rem;
   margin-top: .5rem;
+}
+
+/* ── Puzzle Rush meta bar (objective + turn label) ───────────────────────── */
+.rush-meta-bar {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem;
+  flex-wrap: wrap;         /* never overlaps on narrow screens */
+  row-gap: .25rem;
+}
+
+.rush-objective {
+  font-size: .9rem;
+  font-weight: 700;
+  color: var(--accent);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rush-turn-label {
+  font-size: .85rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
 }
 
 /* ?? Playing HUD ?? */
@@ -1778,6 +1827,14 @@
 .review-acc-value { font-size: 1.2rem; font-weight: 700; color: var(--text, #e2e8f0); }
 .review-acc-sep   { font-size: .75rem; color: var(--text-muted, #94a3b8); text-align: center; }
 
+.review-move-badge-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: .2rem;
+  width: 100%;
+}
+
 .review-move-badge {
   display: flex;
   align-items: center;
@@ -1789,6 +1846,16 @@
 .review-move-san    { font-weight: 700; color: var(--text, #e2e8f0); }
 .review-move-label  { color: var(--text-muted, #94a3b8); font-size: .8rem; }
 .review-move-loss   { color: var(--text-muted, #94a3b8); font-size: .75rem; }
+
+.review-move-summary {
+  font-size: .78rem;
+  color: var(--text-muted, #94a3b8);
+  text-align: center;
+  margin: 0;
+  font-style: italic;
+  max-width: 320px;
+  line-height: 1.4;
+}
 
 .review-best-move-hint {
   font-size: .8rem;

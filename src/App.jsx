@@ -15,6 +15,7 @@ import MultiplayerDuel from './MultiplayerDuel'
 import LiveChess from './LiveChess'
 import ComputerChess from './ComputerChess'
 import GameReview from './GameReview'
+import { useAuth } from './useAuth'
 import './App.css'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -62,6 +63,7 @@ export default function App() {
   const [loadError,   setLoadError]   = useState(null)
   const [noMatch,     setNoMatch]     = useState(false)
   const [settings,    updateSettings] = useSettings()
+  const { user, isAnonymous, linkGoogle } = useAuth()
   const [hintLevel,   setHintLevel]   = useState(0)
   const [history,     setHistory]     = useState([])
   const [wrongFen,    setWrongFen]    = useState(null)
@@ -925,6 +927,7 @@ export default function App() {
       {computerOpen && (
         <ComputerChess
           settings={settings}
+          userId={user?.id ?? null}
           onClose={() => setComputerOpen(false)}
           onReviewGame={(pgn, color) => {
             setReviewPgn(pgn)
@@ -1271,6 +1274,34 @@ export default function App() {
               <p className="settings-hint">
                 Shortcuts: Enter/→ next · R retry · H hint · U undo · Esc close
               </p>
+
+              <div className="settings-section">
+                <div className="settings-section-title">Account</div>
+                {isAnonymous ? (
+                  <>
+                    <p className="settings-hint">
+                      You're playing as a guest. Link your Google account to sync
+                      game history and stats across devices without losing anything.
+                    </p>
+                    <button
+                      className="btn link-account-btn"
+                      onClick={async () => {
+                        const { error } = await linkGoogle()
+                        if (error) alert('Could not link Google account: ' + error.message)
+                      }}
+                    >
+                      🔗 Link Google Account
+                    </button>
+                  </>
+                ) : user ? (
+                  <p className="settings-hint">
+                    ✅ Signed in{user.email ? ` as ${user.email}` : ' with Google'}.
+                    Game history is synced to your account.
+                  </p>
+                ) : (
+                  <p className="settings-hint">Sign-in unavailable (Supabase not configured).</p>
+                )}
+              </div>
             </div>
           )}
         </div>

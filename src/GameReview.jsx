@@ -16,7 +16,7 @@ import { useState, useEffect, useRef, useCallback, Component } from 'react'
 import { Chess } from 'chess.js'
 import { Chessboard } from 'react-chessboard'
 import { getBoardTheme } from './data/boardThemes'
-import { useStockfish, classifyMove, moveAccuracy, DIFFICULTY_LEVELS } from './useStockfish'
+import { useStockfish, classifyMove, moveAccuracy, getClassificationSummary } from './useStockfish'
 
 const MIN_BOARD = 160
 const ANALYSIS_DEPTH = 10   // depth per position — fast enough in browser
@@ -51,14 +51,13 @@ export default function GameReview(props) {
   )
 }
 
-// Move classification display config
+// Move classification display config — aligned with updated classifyMove thresholds
 const CLASS_CONFIG = {
-  best:       { label: 'Best',       symbol: '!',   color: '#22c55e' },
-  excellent:  { label: 'Excellent',  symbol: '!',   color: '#86efac' },
-  good:       { label: 'Good',       symbol: '✓',   color: '#bef264' },
-  inaccuracy: { label: 'Inaccuracy', symbol: '?',   color: '#fbbf24' },
-  mistake:    { label: 'Mistake',    symbol: '??',  color: '#f97316' },
-  blunder:    { label: 'Blunder',    symbol: '???', color: '#ef4444' },
+  best:       { label: 'Best',       symbol: '!!', color: '#22c55e' },
+  excellent:  { label: 'Excellent',  symbol: '!',  color: '#86efac' },
+  good:       { label: 'Good',       symbol: '✓',  color: '#bef264' },
+  inaccuracy: { label: 'Inaccuracy', symbol: '?!', color: '#fbbf24' },
+  blunder:    { label: 'Blunder',    symbol: '??', color: '#ef4444' },
 }
 
 function GameReviewInner({ pgn, playerColor = 'w', settings, onClose }) {
@@ -252,16 +251,22 @@ function GameReviewInner({ pgn, playerColor = 'w', settings, onClose }) {
         </div>
       </div>
 
-      {/* Current move classification */}
+      {/* Current move classification + dynamic summary */}
       {currentMove && (() => {
-        const cfg = CLASS_CONFIG[currentMove.classification.cls]
+        const cfg = CLASS_CONFIG[currentMove.classification.cls] ?? CLASS_CONFIG.blunder
+        const summary = getClassificationSummary(currentMove.classification.cls, currentMove.cpLoss)
         return (
-          <div className="review-move-badge" style={{ color: cfg.color }}>
-            <span className="review-move-symbol">{cfg.symbol}</span>
-            <span className="review-move-san">{currentMove.san}</span>
-            <span className="review-move-label">{cfg.label}</span>
-            {currentMove.cpLoss > 5 && (
-              <span className="review-move-loss">−{currentMove.cpLoss}cp</span>
+          <div className="review-move-badge-wrap">
+            <div className="review-move-badge" style={{ color: cfg.color }}>
+              <span className="review-move-symbol">{cfg.symbol}</span>
+              <span className="review-move-san">{currentMove.san}</span>
+              <span className="review-move-label">{cfg.label}</span>
+              {currentMove.cpLoss > 5 && (
+                <span className="review-move-loss">−{currentMove.cpLoss}cp</span>
+              )}
+            </div>
+            {summary && (
+              <p className="review-move-summary">{summary}</p>
             )}
           </div>
         )
