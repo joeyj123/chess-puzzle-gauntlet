@@ -316,7 +316,7 @@ function LiveChessGame({ settings, initialRoom, onClose }) {
       reason = '50-move rule'
     }
     if (supabase && code) {
-      supabase.from('chess_games').update({ status: 'done', winner }).eq('id', code)
+      supabase.from('chess_games').update({ status: 'done', winner }).eq('id', code).then(() => {})
     }
     setResult({ winner, reason })
     setPhase('results')
@@ -358,6 +358,7 @@ function LiveChessGame({ settings, initialRoom, onClose }) {
         .from('chess_games')
         .update({ fen: newGame.fen(), pgn })
         .eq('id', roomCode)
+        .then(() => {})
     }
 
     checkGameOver(newGame, role, roomCode)
@@ -400,7 +401,7 @@ function LiveChessGame({ settings, initialRoom, onClose }) {
     if (!window.confirm('Resign this game?')) return
     const winner = role === 'host' ? 'guest' : 'host'
     if (supabase && roomCode) {
-      supabase.from('chess_games').update({ status: 'done', winner }).eq('id', roomCode)
+      supabase.from('chess_games').update({ status: 'done', winner }).eq('id', roomCode).then(() => {})
     }
     setResult({ winner, reason: 'Resignation' })
     setPhase('results')

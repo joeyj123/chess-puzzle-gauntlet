@@ -389,7 +389,7 @@ function MultiplayerDuelGame({ allPuzzles, settings, initialRoom, onClose }) {
     // Record in Supabase
     if (supabase && roomCode) {
       const col = role === 'host' ? 'host_solved_ms' : 'guest_solved_ms'
-      supabase.from('rooms').update({ [col]: elapsed }).eq('id', roomCode)
+      supabase.from('rooms').update({ [col]: elapsed }).eq('id', roomCode).then(() => {})
     }
   }
 
@@ -399,7 +399,7 @@ function MultiplayerDuelGame({ allPuzzles, settings, initialRoom, onClose }) {
       const timeout = setTimeout(() => {
         setPhase('results')
         if (supabase && roomCode) {
-          supabase.from('rooms').update({ status: 'done' }).eq('id', roomCode)
+          supabase.from('rooms').update({ status: 'done' }).eq('id', roomCode).then(() => {})
         }
       }, 1500)
       return () => clearTimeout(timeout)
