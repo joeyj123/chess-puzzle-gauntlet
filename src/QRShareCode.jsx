@@ -10,13 +10,18 @@ export default function QRShareCode({ url, size = 160 }) {
 
   useEffect(() => {
     if (!ref.current || !url) return
-    QRCodeLib.toCanvas(ref.current, url, {
-      width: size,
-      margin: 2,
-      color: { dark: '#ffffff', light: '#1a1a2e' },
-    }).catch(() => {
-      // silently ignore if canvas rendering fails
-    })
+    try {
+      // qrcode is a CJS package; toCanvas may live on the default export or the module root
+      const toCanvas = QRCodeLib?.toCanvas ?? QRCodeLib?.default?.toCanvas
+      if (typeof toCanvas !== 'function') return
+      toCanvas(ref.current, url, {
+        width: size,
+        margin: 2,
+        color: { dark: '#ffffff', light: '#1a1a2e' },
+      }).catch(() => {})
+    } catch {
+      // silently ignore — QR code is cosmetic
+    }
   }, [url, size])
 
   return <canvas ref={ref} className="qr-canvas" />

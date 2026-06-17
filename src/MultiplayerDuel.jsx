@@ -23,8 +23,8 @@ import QRShareCode from './QRShareCode'
 
 // ── Local error boundary ──────────────────────────────────────────────────────
 class DuelErrorBoundary extends Component {
-  state = { crashed: false }
-  static getDerivedStateFromError() { return { crashed: true } }
+  state = { crashed: false, msg: '' }
+  static getDerivedStateFromError(err) { return { crashed: true, msg: String(err?.message || err) } }
   componentDidCatch(err) { console.error('[MultiplayerDuel] render error:', err) }
   render() {
     if (this.state.crashed) {
@@ -34,6 +34,11 @@ class DuelErrorBoundary extends Component {
             <div className="duel-unconfigured-icon">⚠️</div>
             <h2>Connection error</h2>
             <p>Something went wrong with the game. Please try again.</p>
+            {this.state.msg && (
+              <p style={{ fontSize: '0.72rem', color: '#f87171', wordBreak: 'break-all', maxWidth: 320 }}>
+                {this.state.msg}
+              </p>
+            )}
             <button className="duel-btn duel-btn-primary" onClick={this.props.onClose}>
               Back
             </button>

@@ -482,6 +482,48 @@ All multiplayer features are fully live and deployed:
 Both features work locally (`npm run dev`) and on the Vercel production URL.
 Supabase free tier — no ongoing cost expected for hobby-scale usage.
 
+## Session 10 (2026-06-16) — Multiplayer crash fixes + QR code share, NOT YET COMMITTED
+
+### Changes made
+1. **`src/MultiplayerDuel.jsx`** — Fixed promise chain bug: early-error `.then()` returns now return
+   `null` instead of `undefined`, and the second `.then()` checks `if (result === null) return`
+   so `startCountdown()` is never called after an error. Added self-join check:
+   `if (data.host_id === myId.current)` shows "You can't join your own game" message.
+   Added `DuelErrorBoundary` class wrapping the overlay so any render crash shows a local
+   "Connection error / Back" screen instead of crashing the whole app.
+   Added QR code to host lobby via `<QRShareCode>` component.
+
+2. **`src/LiveChess.jsx`** — Same promise chain + self-join + local `LiveChessErrorBoundary` fixes.
+   Error boundary now shows the actual error message in red for debugging.
+   `subscribeToGame` calls wrapped in try-catch to prevent useEffect throws.
+   `setGame` updater in Supabase callback wrapped in try-catch. `getCustomSquareStyles()`
+   wrapped in try-catch. `inCheck` and `captured` derived values wrapped in IIFE try-catches.
+   Added QR code to host lobby.
+
+3. **`src/main.jsx`** — Global ErrorBoundary reload now navigates to `window.location.pathname`
+   (strips `?chess=` / `?room=`) instead of reloading the same crashing URL.
+
+4. **`src/QRShareCode.jsx`** — New component. Renders QR code via `qrcode` npm package onto a
+   `<canvas>`. CJS/ESM interop handled defensively (`QRCodeLib?.toCanvas ?? QRCodeLib?.default?.toCanvas`),
+   entire useEffect wrapped in try-catch so a missing/broken qrcode install never crashes React.
+
+5. **`package.json`** — Added `"qrcode": "^1.5.4"`.
+
+6. **`src/App.css`** — Added `.duel-qr-wrap`, `.qr-canvas`, `.duel-qr-hint` styles.
+
+### Still investigating
+The error boundary IS catching the crash ("Connection error" screen). The error message is now
+displayed in the UI in red so the user can tell us exactly what's throwing. Next step: reproduce
+the crash, read the red error text, fix the root cause.
+
+### Commit commands
+```
+npm install
+git add -A
+git commit -m "Multiplayer crash fixes: local error boundaries, QR code share, promise chain fix"
+git push
+```
+
 ## Next steps
 1. Test multiplayer with a real second player on the live URL.
 2. Future stretch ideas:

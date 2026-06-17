@@ -23,8 +23,8 @@ import QRShareCode from './QRShareCode'
 // Catches any render/effect throw inside the game overlay and shows a friendly
 // "Back" screen instead of letting it bubble up to the global error boundary.
 class LiveChessErrorBoundary extends Component {
-  state = { crashed: false }
-  static getDerivedStateFromError() { return { crashed: true } }
+  state = { crashed: false, msg: '' }
+  static getDerivedStateFromError(err) { return { crashed: true, msg: String(err?.message || err) } }
   componentDidCatch(err) { console.error('[LiveChess] render error:', err) }
   render() {
     if (this.state.crashed) {
@@ -34,6 +34,11 @@ class LiveChessErrorBoundary extends Component {
             <div className="duel-unconfigured-icon">⚠️</div>
             <h2>Connection error</h2>
             <p>Something went wrong with the game. Please try again.</p>
+            {this.state.msg && (
+              <p style={{ fontSize: '0.72rem', color: '#f87171', wordBreak: 'break-all', maxWidth: 320 }}>
+                {this.state.msg}
+              </p>
+            )}
             <button className="duel-btn duel-btn-primary" onClick={this.props.onClose}>
               Back
             </button>
@@ -232,7 +237,7 @@ function LiveChessGame({ settings, initialRoom, onClose }) {
         if (error) setRoomError('Could not create game. Please try again.')
       })
 
-    subscribeToGame(code, 'host')
+    try { subscribeToGame(code, 'host') } catch (e) { console.error('[LiveChess] subscribe error:', e) }
   }, [initialRoom, subscribeToGame])
 
   // ── Guest: join game ─────────────────────────────────────────────────────
@@ -281,7 +286,7 @@ function LiveChessGame({ settings, initialRoom, onClose }) {
       })
       .then((result) => {
         if (result === null) return
-        subscribeToGame(initialRoom, 'guest')
+        try { subscribeToGame(initialRoom, 'guest') } catch (e) { console.error('[LiveChess] subscribe error:', e) }
         setPhase('playing')
       })
       .catch(() => setRoomError('Failed to join game.'))
