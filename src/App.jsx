@@ -16,6 +16,7 @@ import LiveChess from './LiveChess'
 import ComputerChess from './ComputerChess'
 import GameReview from './GameReview'
 import { useAuth } from './useAuth'
+import { supabase as supabaseClient } from './supabaseClient'
 import './App.css'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -1297,6 +1298,10 @@ export default function App() {
                   <p className="settings-hint">
                     ✅ Signed in{user.email ? ` as ${user.email}` : ' with Google'}.
                     Game history is synced to your account.
+                  </p>
+                ) : supabaseClient ? (
+                  <p className="settings-hint">
+                    Sign-in temporarily unavailable — please refresh the page.
                   </p>
                 ) : (
                   <p className="settings-hint">Sign-in unavailable (Supabase not configured).</p>
