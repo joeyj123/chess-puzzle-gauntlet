@@ -869,6 +869,9 @@ export default function App() {
   const isSolved = status === 'solved'
   const isWrong  = status === 'wrong'
   const theme    = getBoardTheme(settings.boardTheme)
+  const signedInName = !isAnonymous && user
+    ? (user.user_metadata?.full_name || user.email?.split('@')[0] || null)
+    : null
   const canUndo    = history.length > 0 && status !== 'thinking' && !replaying
   const canHint    = (status === 'playing' || status === 'wrong') && !replaying
   const canExplain = !!puzzle && !replaying && status !== 'thinking'
@@ -967,6 +970,11 @@ export default function App() {
           <h1>Chess Puzzle Gauntlet</h1>
         </div>
         <div className="stats">
+          {signedInName && (
+            <span className="user-email-chip" title={user.email}>
+              {signedInName}
+            </span>
+          )}
           <div className="stat">
             <span className="stat-icon">🔥</span>
             <span className="stat-val">{streak}</span>

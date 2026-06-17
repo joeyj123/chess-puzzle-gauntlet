@@ -14,7 +14,7 @@ import { Chess } from 'chess.js'
 import { Chessboard } from 'react-chessboard'
 import { getBoardTheme } from './data/boardThemes'
 import { playCorrect, playWrong, playSolved } from './sounds'
-import { useStockfish, DIFFICULTY_LEVELS } from './useStockfish'
+import { useStockfish, DIFFICULTY_LEVELS, COMPUTER_MOVETIME_MS } from './useStockfish'
 import { supabase } from './supabaseClient'
 
 const MIN_BOARD = 160
@@ -101,6 +101,20 @@ function ComputerChessGame({ settings, userId, onClose, onReviewGame }) {
   // ── Stockfish ────────────────────────────────────────────────────────────
   const { getBestMove, setSkillLevel, terminate } = useStockfish()
   const computerTimerRef = useRef(null)
+  const workerWarmedRef = useRef(false)
+
+  // Pre-warm Stockfish when overlay opens so first move isn't slow
+  useEffect(() => {
+    if (workerWarmedRef.current) return
+    workerWarmedRef.current = true
+    setSkillLevel(DIFFICULTY_LEVELS[diffIdx].skill)
+    getBestMove(
+      'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+      1,
+      50,
+      true,
+    ).catch(() => {})
+  }, [diffIdx, getBestMove, setSkillLevel])
 
   useEffect(() => () => {
     clearTimeout(computerTimerRef.current)
@@ -138,12 +152,12 @@ function ComputerChessGame({ settings, userId, onClose, onReviewGame }) {
   function scheduleComputerMove(currentGame, level) {
     const lv = level ?? DIFFICULTY_LEVELS[diffIdx]
     clearTimeout(computerTimerRef.current)
-    // Small delay so the human's move animation finishes before the computer responds
+    setSkillLevel(lv.skill)
     computerTimerRef.current = setTimeout(async () => {
       setThinking(true)
       let uci = null
       try {
-        uci = await getBestMove(currentGame.fen(), lv.depth, 800)
+        uci = await getBestMove(currentGame.fen(), lv.depth, COMPUTER_MOVETIME_MS, true)
       } catch (err) {
         console.error('[ComputerChess] getBestMove error:', err)
       }
@@ -164,7 +178,7 @@ function ComputerChessGame({ settings, userId, onClose, onReviewGame }) {
       setGame(new Chess(g2.fen()))
       if (settings.sounds) playCorrect()
       checkGameOver(g2, 'computer-moved')
-    }, 150)
+    }, 0)
   }
 
   // ── Move handler ─────────────────────────────────────────────────────────

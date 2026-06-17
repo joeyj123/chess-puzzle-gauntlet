@@ -95,6 +95,22 @@
 .stat-val  { font-size: 1.25rem; font-weight: 700; line-height: 1.1; color: #fff; }
 .stat-lbl  { font-size: .65rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .05em; }
 
+/* Signed-in user chip — hidden on very narrow screens to protect header layout */
+.user-email-chip {
+  font-size: .7rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  max-width: 5.5rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex-shrink: 1;
+  min-width: 0;
+  padding: .2rem .45rem;
+  border-radius: 6px;
+  background: rgba(255,255,255,.06);
+}
+
 /* -- Header menu (Daily / Achievements / Settings) ------------------------- */
 
 .menu-btn {
@@ -859,6 +875,7 @@
 
 @media (max-width: 360px) {
   .app-header h1 { display: none; }
+  .user-email-chip { display: none; }
 }
 
 /* Tablet and up: give the board and panel more breathing room. */

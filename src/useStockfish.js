@@ -11,20 +11,20 @@
 
 import { useRef, useCallback } from 'react'
 
-// Map our 10 difficulty presets to Stockfish Skill Level (0–20).
-// Depths are capped at 12 for mobile performance; movetime (800 ms) is
-// the real guard — Stockfish stops at whichever limit fires first.
+// Computer play: movetime-only (instant). Skill Level controls strength.
+export const COMPUTER_MOVETIME_MS = 80
+
 export const DIFFICULTY_LEVELS = [
   { label: 'Beginner',         skill: 0,  elo: '500',  depth: 1  },
   { label: 'Novice',           skill: 2,  elo: '750',  depth: 2  },
   { label: 'Casual',           skill: 4,  elo: '1000', depth: 3  },
-  { label: 'Intermediate',     skill: 6,  elo: '1250', depth: 5  },
-  { label: 'Club',             skill: 9,  elo: '1500', depth: 7  },
-  { label: 'Strong Club',      skill: 11, elo: '1750', depth: 9  },
-  { label: 'Advanced',         skill: 13, elo: '2000', depth: 11 },
-  { label: 'Expert',           skill: 15, elo: '2250', depth: 12 },
-  { label: 'Candidate Master', skill: 17, elo: '2500', depth: 12 },
-  { label: 'Master',           skill: 20, elo: '2800', depth: 12 },
+  { label: 'Intermediate',     skill: 6,  elo: '1250', depth: 4  },
+  { label: 'Club',             skill: 9,  elo: '1500', depth: 5  },
+  { label: 'Strong Club',      skill: 11, elo: '1750', depth: 6  },
+  { label: 'Advanced',         skill: 13, elo: '2000', depth: 6  },
+  { label: 'Expert',           skill: 15, elo: '2250', depth: 6  },
+  { label: 'Candidate Master', skill: 17, elo: '2500', depth: 6  },
+  { label: 'Master',           skill: 20, elo: '2800', depth: 6  },
 ]
 
 /**
@@ -101,17 +101,18 @@ export function useStockfish() {
   }, [send])
 
   /** Returns best move UCI string (e.g. "e2e4") or null */
-  const getBestMove = useCallback((fen, depth = 12, movetime = 800) => {
+  const getBestMove = useCallback((fen, depth = 8, movetime = 100, movetimeOnly = false) => {
     return new Promise((resolve) => {
       const w = getWorker()
       if (!w) { resolve(null); return }
 
-      // Safety timeout: if Stockfish doesn't reply in 15 s, give up gracefully
+      const safetyMs = movetimeOnly ? Math.max(2000, movetime + 500) : 15000
       const timeoutId = setTimeout(() => {
         console.warn('[Stockfish] getBestMove timed out, resolving null')
         callbackRef.current = null
+        send('stop')
         resolve(null)
-      }, 15000)
+      }, safetyMs)
 
       callbackRef.current = (line) => {
         if (line.startsWith('bestmove')) {
@@ -121,11 +122,12 @@ export function useStockfish() {
           resolve(!mv || mv === '(none)' ? null : mv)
         }
       }
+      send('stop')
       w.postMessage('position fen ' + fen)
-      // Stop at depth OR movetime ms, whichever comes first
-      w.postMessage(`go depth ${depth} movetime ${movetime}`)
+      // movetime-only = instant response; depth+movetime for game review analysis
+      w.postMessage(movetimeOnly ? `go movetime ${movetime}` : `go depth ${depth} movetime ${movetime}`)
     })
-  }, [])
+  }, [send])
 
   /**
    * Analyze a position.

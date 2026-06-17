@@ -13,11 +13,12 @@ export default defineConfig({
       name: 'copy-stockfish',
       buildStart() {
         // Try several known locations across stockfish package versions
+        // Prefer lite builds over NNUE — much faster on mobile
         const candidates = [
           'stockfish/src/stockfish.js',
           'stockfish/stockfish.js',
-          'stockfish/src/stockfish-nnue-16.js',
           'stockfish/src/stockfish-16.js',
+          'stockfish/src/stockfish-nnue-16.js',
         ]
         let copied = false
         for (const candidate of candidates) {
