@@ -109,7 +109,11 @@ export function useAuth() {
       const signedIn = await signInAnonymously()
       if (!signedIn) return { error: { message: authError ?? 'Could not sign in' } }
     }
-    const { data, error } = await supabase.auth.linkIdentity({ provider: 'google' })
+    const redirectTo = window.location.origin + window.location.pathname
+    const { data, error } = await supabase.auth.linkIdentity({
+      provider: 'google',
+      options: { redirectTo },
+    })
     if (error) console.error('[Auth] linkGoogle failed:', error.message)
     return { data, error }
   }, [user, authError, signInAnonymously])
