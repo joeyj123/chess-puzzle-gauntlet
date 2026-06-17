@@ -14,17 +14,18 @@ import { useRef, useCallback } from 'react'
 // Computer play: movetime-only (instant). Skill Level controls strength.
 export const COMPUTER_MOVETIME_MS = 80
 
+// Skill Level controls strength; movetime is always COMPUTER_MOVETIME_MS (instant).
 export const DIFFICULTY_LEVELS = [
-  { label: 'Beginner',         skill: 0,  elo: '500',  depth: 1  },
-  { label: 'Novice',           skill: 2,  elo: '750',  depth: 2  },
-  { label: 'Casual',           skill: 4,  elo: '1000', depth: 3  },
-  { label: 'Intermediate',     skill: 6,  elo: '1250', depth: 4  },
-  { label: 'Club',             skill: 9,  elo: '1500', depth: 5  },
-  { label: 'Strong Club',      skill: 11, elo: '1750', depth: 6  },
-  { label: 'Advanced',         skill: 13, elo: '2000', depth: 6  },
-  { label: 'Expert',           skill: 15, elo: '2250', depth: 6  },
-  { label: 'Candidate Master', skill: 17, elo: '2500', depth: 6  },
-  { label: 'Master',           skill: 20, elo: '2800', depth: 6  },
+  { label: 'Beginner',         skill: 0,  elo: '500'  },
+  { label: 'Novice',           skill: 2,  elo: '750'  },
+  { label: 'Casual',           skill: 4,  elo: '1000' },
+  { label: 'Intermediate',     skill: 6,  elo: '1250' },
+  { label: 'Club',             skill: 9,  elo: '1500' },
+  { label: 'Strong Club',      skill: 11, elo: '1750' },
+  { label: 'Advanced',         skill: 13, elo: '2000' },
+  { label: 'Expert',           skill: 15, elo: '2250' },
+  { label: 'Candidate Master', skill: 17, elo: '2500' },
+  { label: 'Master',           skill: 20, elo: '2800' },
 ]
 
 /**
@@ -81,6 +82,7 @@ export function useStockfish() {
           if (callbackRef.current) callbackRef.current(line)
         }
         w.postMessage('uci')
+        w.postMessage('setoption name Move Overhead value 10')
         w.postMessage('isready')
         workerRef.current = w
       } catch (err) {
@@ -128,6 +130,11 @@ export function useStockfish() {
       w.postMessage(movetimeOnly ? `go movetime ${movetime}` : `go depth ${depth} movetime ${movetime}`)
     })
   }, [send])
+
+  /** Instant computer move — movetime only at all difficulty levels. Strength via Skill Level. */
+  const getComputerMove = useCallback((fen) => {
+    return getBestMove(fen, 0, COMPUTER_MOVETIME_MS, true)
+  }, [getBestMove])
 
   /**
    * Analyze a position.
@@ -180,5 +187,5 @@ export function useStockfish() {
     }
   }, [])
 
-  return { getBestMove, analyzePosition, setSkillLevel, stop, terminate, send }
+  return { getBestMove, getComputerMove, analyzePosition, setSkillLevel, stop, terminate, send }
 }

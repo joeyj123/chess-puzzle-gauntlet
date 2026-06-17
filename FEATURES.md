@@ -40,15 +40,14 @@ implementing items from a tier. Items move to "Done" once shipped.
       king + pulsing warning), captured pieces display, resign with confirmation.
       Launched from ☰ menu → "♟ Play Chess".
 - [x] Play vs Computer (2026-06-17) — full chess game against Stockfish. 10 difficulty
-      levels evenly spaced 500→2800 (Beginner depth 1 / Master depth 18), color picker
-      (White/Black/Random), resign button, "Review Game" on results. Launched from ☰ menu
-      → "🤖 vs Computer". Stockfish runs offline as a Web Worker (`public/stockfish.js`
-      copied from `node_modules/stockfish` by the vite plugin on build).
+      levels evenly spaced 500→2800, color picker (White/Black/Random), resign button,
+      "Review Game" on results. Stockfish Web Worker with 80ms movetime + Skill Level.
+      Launched from ☰ menu → "🤖 vs Computer".
 - [x] Game Review / analysis (2026-06-17) — post-game engine analysis overlay. Analyzes
       every position at depth 10, classifies moves (Best/Excellent/Good/Inaccuracy/
-      Mistake/Blunder), shows accuracy % per player, board replay with prev/next (keyboard
-      ←→), green arrow for best move on mistakes/blunders. Available after vs-Computer
-      games and after live 1v1 chess games.
+      Blunder) with per-move summary text, shows accuracy % per player, board replay
+      with prev/next (keyboard ←→), green arrow for best move on blunders. Available
+      after vs-Computer games and after live 1v1 chess games.
 - [x] QR code share (2026-06-17) — QR code displayed in the host lobby of both Duel and
       Play Chess overlays. Nearby opponent scans instead of needing a link.
 - [ ] Time controls / chess clock (follow-up to live chess)
@@ -57,8 +56,22 @@ implementing items from a tier. Items move to "Done" once shipped.
 - [ ] Adaptive difficulty in computer mode (auto-suggest level up/down after each game)
 - [ ] Wordle-style shareable result summary (pairs well with duel results)
 - [ ] Friend system (usernames, invite by username, match history) — Tier 4 stretch
+- [ ] Game history browser UI (read `game_history` from Supabase — backend done, no UI yet)
 
 ## Done
+- [x] Anonymous Supabase auth + Google account linking (2026-06-17) — guest sessions
+      on first visit; Settings → Link Google (first device) or Sign in with Google
+      (other devices). `useAuth.js` hook. Requires Supabase providers + `schema.sql`.
+- [x] Game history persistence (2026-06-17) — vs-Computer games saved to `game_history`
+      table (PGN, outcome, opponent, color). Fire-and-forget insert on game end.
+- [x] Puzzle Rush click-to-move (2026-06-17) — tap piece → legal dots → tap square,
+      alongside drag-and-drop. Selection cleared on each new puzzle.
+- [x] Puzzle Rush objective + turn labels (2026-06-17) — "Mate in N" / theme label +
+      "Your Turn: White/Black" bar above the board HUD.
+- [x] vs Computer instant moves (2026-06-17) — 80ms movetime-only search, worker pre-warm,
+      lite Stockfish preferred over NNUE. Skill Level controls difficulty.
+- [x] Signed-in user name chip (2026-06-17) — Google name/email prefix in header when
+      signed in; hidden on very narrow screens (≤360px) to protect layout.
 - [x] Tone down / make optional the wrong-move shake animation (toggle in ⚙ settings)
 - [x] Sound toggle (move sounds, success/fail chimes)
 - [x] Board theme picker (colors, piece sets)
