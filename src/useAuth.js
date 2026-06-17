@@ -88,6 +88,9 @@ export function useAuth() {
   const signInWithGoogle = useCallback(async () => {
     if (!supabase) return { error: { message: 'Supabase not configured' } }
     setAuthError(null)
+    // Sign out the current guest session first — otherwise Supabase tries to
+    // link Google to this guest, which fails if Google is already on another account.
+    await supabase.auth.signOut()
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {

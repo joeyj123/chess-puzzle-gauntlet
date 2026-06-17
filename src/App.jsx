@@ -1282,8 +1282,8 @@ export default function App() {
                   <>
                     <p className="settings-hint">
                       {googleAlreadyLinked || (authError && authError.includes('already linked'))
-                        ? 'Your Google account is already linked from a previous sign-in. Use "Sign in with Google" to open that account.'
-                        : "You're playing as a guest. Link your Google account to sync game history and stats across devices."}
+                        ? 'This Google account is already linked (maybe on another device). Click "Sign in with Google" — do not use Link.'
+                        : "You're playing as a guest. On a new device, use Sign in with Google. Link is only for first-time setup on this device."}
                     </p>
                     {authError && googleAlreadyLinked && (
                       <p className="settings-hint" style={{ color: '#fbbf24' }}>{authError}</p>
