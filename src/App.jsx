@@ -1288,7 +1288,10 @@ export default function App() {
                       className="btn link-account-btn"
                       onClick={async () => {
                         const { error } = await linkGoogle()
-                        if (error) alert('Could not link Google account: ' + error.message)
+                        if (error) {
+                          const msg = typeof error === 'string' ? error : error.message
+                          alert('Could not link Google account: ' + msg)
+                        }
                       }}
                     >
                       🔗 Link Google Account

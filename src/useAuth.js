@@ -15,6 +15,19 @@ async function ensureProfile(userId) {
   await supabase.from('profiles').upsert({ id: userId }, { onConflict: 'id' }).then(() => {})
 }
 
+/** True when the user has linked Google (or any non-anonymous provider). */
+function userHasGoogle(user) {
+  if (!user) return false
+  return (user.identities ?? []).some(id => id.provider === 'google')
+}
+
+function userIsAnonymous(user) {
+  if (!user) return false
+  if (userHasGoogle(user)) return false
+  return user.is_anonymous === true ||
+    (user.identities ?? []).every(id => id.provider === 'anonymous')
+}
+
 export function useAuth() {
   const [user,      setUser]      = useState(null)
   const [loading,   setLoading]   = useState(true)
@@ -50,6 +63,12 @@ export function useAuth() {
     let cancelled = false
 
     async function init() {
+      // Pick up session after Google OAuth redirect (tokens arrive in URL hash)
+      if (window.location.hash.includes('access_token')) {
+        await supabase.auth.getSession()
+        window.history.replaceState(null, '', window.location.pathname + window.location.search)
+      }
+
       const { data: { session }, error: sessionError } = await supabase.auth.getSession()
       if (cancelled) return
 
@@ -112,16 +131,24 @@ export function useAuth() {
     const redirectTo = window.location.origin + window.location.pathname
     const { data, error } = await supabase.auth.linkIdentity({
       provider: 'google',
-      options: { redirectTo },
+      options: {
+        redirectTo,
+        scopes: 'email profile',
+      },
     })
-    if (error) console.error('[Auth] linkGoogle failed:', error.message)
-    return { data, error }
+    if (error) {
+      console.error('[Auth] linkGoogle failed:', error.message)
+      return { data, error }
+    }
+    // linkIdentity returns a URL — must navigate there to start Google OAuth
+    if (data?.url) {
+      window.location.href = data.url
+      return { data, error: null }
+    }
+    return { data, error: { message: 'No OAuth URL returned from Supabase' } }
   }, [user, authError, signInAnonymously])
 
-  const isAnonymous = user
-    ? (user.is_anonymous === true ||
-       (user.identities ?? []).every(id => id.provider === 'anonymous'))
-    : false
+  const isAnonymous = userIsAnonymous(user)
 
   return { user, loading, authError, isAnonymous, signInAnonymously, linkGoogle }
 }
