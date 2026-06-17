@@ -203,11 +203,15 @@ export default function MultiplayerDuel({ allPuzzles, settings, initialRoom, onC
       .then(({ data, error }) => {
         if (error || !data) {
           setRoomError('Room not found. The link may have expired.')
-          return
+          return null
         }
         if (data.status === 'done') {
           setRoomError('This game is already finished.')
-          return
+          return null
+        }
+        if (data.host_id === myId.current) {
+          setRoomError("You can't join your own game — share this link with a friend!")
+          return null
         }
         puzzleIdRef.current = data.puzzle_id
         // Update row with guest_id
@@ -216,7 +220,9 @@ export default function MultiplayerDuel({ allPuzzles, settings, initialRoom, onC
           .update({ guest_id: myId.current, status: 'playing' })
           .eq('id', initialRoom)
       })
-      .then(() => {
+      .then((result) => {
+        // null means an error was already handled above — don't start the game
+        if (result === null) return
         subscribeToRoom(initialRoom, 'guest')
         // Guest triggers countdown on their end immediately after joining
         startCountdown()
