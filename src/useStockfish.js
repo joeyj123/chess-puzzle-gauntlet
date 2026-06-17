@@ -77,20 +77,29 @@ export function useStockfish() {
   }, [send])
 
   /** Returns best move UCI string (e.g. "e2e4") or null */
-  const getBestMove = useCallback((fen, depth = 12) => {
+  const getBestMove = useCallback((fen, depth = 12, movetime = 1500) => {
     return new Promise((resolve) => {
       const w = getWorker()
       if (!w) { resolve(null); return }
 
+      // Safety timeout: if Stockfish doesn't reply in 15 s, give up gracefully
+      const timeoutId = setTimeout(() => {
+        console.warn('[Stockfish] getBestMove timed out, resolving null')
+        callbackRef.current = null
+        resolve(null)
+      }, 15000)
+
       callbackRef.current = (line) => {
         if (line.startsWith('bestmove')) {
+          clearTimeout(timeoutId)
           callbackRef.current = null
           const mv = line.split(' ')[1]
           resolve(!mv || mv === '(none)' ? null : mv)
         }
       }
       w.postMessage('position fen ' + fen)
-      w.postMessage(`go depth ${depth}`)
+      // Stop at depth OR movetime ms, whichever comes first
+      w.postMessage(`go depth ${depth} movetime ${movetime}`)
     })
   }, [])
 
@@ -107,6 +116,12 @@ export function useStockfish() {
       let lastScore = 0
       let lastBestMove = null
 
+      const timeoutId = setTimeout(() => {
+        console.warn('[Stockfish] analyzePosition timed out, resolving defaults')
+        callbackRef.current = null
+        resolve({ score: lastScore, bestMove: lastBestMove || null })
+      }, 20000)
+
       callbackRef.current = (line) => {
         if (line.startsWith('info')) {
           const cpMatch   = line.match(/score cp (-?\d+)/)
@@ -117,6 +132,7 @@ export function useStockfish() {
           if (pvMatch)   lastBestMove = pvMatch[1]
         }
         if (line.startsWith('bestmove')) {
+          clearTimeout(timeoutId)
           callbackRef.current = null
           const mv = line.split(' ')[1]
           if (!lastBestMove && mv && mv !== '(none)') lastBestMove = mv

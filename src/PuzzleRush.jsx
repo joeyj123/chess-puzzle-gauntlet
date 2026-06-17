@@ -60,6 +60,8 @@ export default function PuzzleRush({ allPuzzles, settings, bestScore, leaderboar
   const [wrongCount,   setWrongCount]   = useState(0)
   const [timeLeft,     setTimeLeft]     = useState(180)
   const [isShaking,    setIsShaking]    = useState(false)
+  const [selectedSq,   setSelectedSq]   = useState(null)
+  const [legalTargets, setLegalTargets] = useState([])
   const [boardWidth,   setBoardWidth]   = useState(() =>
     Math.max(MIN_BOARD, Math.floor(Math.min(
       window.innerWidth  - 40,
@@ -108,6 +110,8 @@ export default function PuzzleRush({ allPuzzles, settings, bestScore, leaderboar
     setMsg('')
     setMsgType('info')
     setWrongCount(0)
+    setSelectedSq(null)
+    setLegalTargets([])
   }, [])
 
   // ── Start the run ─────────────────────────────────────────────────────────
@@ -271,11 +275,51 @@ export default function PuzzleRush({ allPuzzles, settings, bestScore, leaderboar
   }, [commitMove])
 
   const onSquareClick = useCallback((sq) => {
-    if (!game) return
-    const pieces = game.board().flat().filter(Boolean)
-    const isOwnPiece = pieces.some(p => p.square === sq && p.color === game.turn())
-    if (isOwnPiece) return  // simple click-to-move not implemented in rush mode for simplicity
-  }, [game])
+    if (!game || phase !== 'playing') return
+    const piece = game.get(sq)
+    const turn  = game.turn()
+
+    if (selectedSq) {
+      if (legalTargets.includes(sq)) {
+        // Detect promotion
+        const movingPiece = game.get(selectedSq)
+        const isPromo = movingPiece?.type === 'p' &&
+          ((turn === 'w' && sq[1] === '8') || (turn === 'b' && sq[1] === '1'))
+        commitMove(selectedSq, sq, isPromo ? 'q' : undefined)
+        setSelectedSq(null)
+        setLegalTargets([])
+        return
+      }
+      // Click another own piece → re-select
+      if (piece && piece.color === turn) {
+        setSelectedSq(sq)
+        setLegalTargets(game.moves({ square: sq, verbose: true }).map(m => m.to))
+        return
+      }
+      setSelectedSq(null)
+      setLegalTargets([])
+      return
+    }
+
+    if (piece && piece.color === turn) {
+      setSelectedSq(sq)
+      setLegalTargets(game.moves({ square: sq, verbose: true }).map(m => m.to))
+    }
+  }, [game, phase, selectedSq, legalTargets, commitMove])
+
+  // ── Square styles (highlights + click-to-move) ────────────────────────────
+  const customSquareStyles = useMemo(() => {
+    const styles = { ...highlights }
+    if (selectedSq) {
+      styles[selectedSq] = { background: 'rgba(100,180,255,0.7)' }
+    }
+    legalTargets.forEach(sq => {
+      if (!styles[sq]) {
+        styles[sq] = { background: 'radial-gradient(circle, rgba(0,0,0,0.2) 36%, transparent 40%)' }
+      }
+    })
+    return styles
+  }, [highlights, selectedSq, legalTargets])
 
   // ── Theme ─────────────────────────────────────────────────────────────────
   const theme = useMemo(() => getBoardTheme(settings.boardTheme), [settings.boardTheme])
@@ -364,7 +408,7 @@ export default function PuzzleRush({ allPuzzles, settings, bestScore, leaderboar
               boardWidth={boardWidth}
               arePremovesAllowed={false}
               animationDuration={150}
-              customSquareStyles={highlights}
+              customSquareStyles={customSquareStyles}
               customBoardStyle={{ borderRadius: '6px', boxShadow: '0 6px 32px rgba(0,0,0,.5)' }}
               customDarkSquareStyle={{ backgroundColor: theme.dark }}
               customLightSquareStyle={{ backgroundColor: theme.light }}

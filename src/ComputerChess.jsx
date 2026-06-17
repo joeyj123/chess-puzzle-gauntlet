@@ -136,11 +136,23 @@ function ComputerChessGame({ settings, onClose, onReviewGame }) {
   function scheduleComputerMove(currentGame, level) {
     const lv = level ?? DIFFICULTY_LEVELS[diffIdx]
     clearTimeout(computerTimerRef.current)
+    // Small delay so the human's move animation finishes before the computer responds
     computerTimerRef.current = setTimeout(async () => {
       setThinking(true)
-      const uci = await getBestMove(currentGame.fen(), lv.depth)
+      let uci = null
+      try {
+        uci = await getBestMove(currentGame.fen(), lv.depth, 1500)
+      } catch (err) {
+        console.error('[ComputerChess] getBestMove error:', err)
+      }
       setThinking(false)
-      if (!uci) return
+      if (!uci) {
+        // Stockfish timed out or failed — make a random legal move to keep the game going
+        const moves = currentGame.moves({ verbose: true })
+        if (!moves.length) return
+        const fallback = moves[Math.floor(Math.random() * moves.length)]
+        uci = fallback.from + fallback.to + (fallback.promotion || '')
+      }
       const obj = uciToObj(uci)
       const g2 = new Chess(currentGame.fen())
       const mv = g2.move(obj)

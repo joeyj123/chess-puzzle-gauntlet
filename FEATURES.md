@@ -39,9 +39,22 @@ implementing items from a tier. Items move to "Done" once shipped.
       + drag-and-drop, legal move dots, last-move highlight, check highlight (red
       king + pulsing warning), captured pieces display, resign with confirmation.
       Launched from ☰ menu → "♟ Play Chess".
+- [x] Play vs Computer (2026-06-17) — full chess game against Stockfish. 10 difficulty
+      levels evenly spaced 500→2800 (Beginner depth 1 / Master depth 18), color picker
+      (White/Black/Random), resign button, "Review Game" on results. Launched from ☰ menu
+      → "🤖 vs Computer". Stockfish runs offline as a Web Worker (`public/stockfish.js`
+      copied from `node_modules/stockfish` by the vite plugin on build).
+- [x] Game Review / analysis (2026-06-17) — post-game engine analysis overlay. Analyzes
+      every position at depth 10, classifies moves (Best/Excellent/Good/Inaccuracy/
+      Mistake/Blunder), shows accuracy % per player, board replay with prev/next (keyboard
+      ←→), green arrow for best move on mistakes/blunders. Available after vs-Computer
+      games and after live 1v1 chess games.
+- [x] QR code share (2026-06-17) — QR code displayed in the host lobby of both Duel and
+      Play Chess overlays. Nearby opponent scans instead of needing a link.
 - [ ] Time controls / chess clock (follow-up to live chess)
 - [ ] Draw offers (follow-up to live chess)
 - [ ] Move history / notation panel (follow-up to live chess)
+- [ ] Adaptive difficulty in computer mode (auto-suggest level up/down after each game)
 - [ ] Wordle-style shareable result summary (pairs well with duel results)
 - [ ] Friend system (usernames, invite by username, match history) — Tier 4 stretch
 
