@@ -596,6 +596,9 @@ export default function App() {
       if (piece && piece.color === game.turn()) {
         const moves = game.moves({ square, verbose: true })
         if (moves.length) {
+          // Clear stale highlights (e.g. yellow from computer's last move, red
+          // from a wrong attempt) so the new dot indicators are always visible.
+          setHighlights({})
           setSelectedSquare(square)
           setLegalTargets(moves.map(m => m.to))
           return
@@ -612,6 +615,8 @@ export default function App() {
     if (!piece || piece.color !== game.turn()) return
     const moves = game.moves({ square, verbose: true })
     if (!moves.length) return
+    // Clear stale highlights so legal-move dots are always unobstructed.
+    setHighlights({})
     setSelectedSquare(square)
     setLegalTargets(moves.map(m => m.to))
   }, [game, puzzle, status, replaying, selectedSquare, legalTargets, attemptMove])
@@ -627,11 +632,12 @@ export default function App() {
       }
     }
     for (const sq of legalTargets) {
+      // Always render the dot — overrides any existing highlight (e.g. yellow
+      // from the computer's last move, red from a wrong attempt) so the player
+      // can always see where they can legally go.
       styles[sq] = {
         ...(styles[sq] || {}),
-        background: styles[sq]?.background
-          ? styles[sq].background
-          : 'radial-gradient(circle, rgba(96,165,250,.55) 22%, transparent 26%)',
+        background: 'radial-gradient(circle, rgba(96,165,250,.55) 22%, transparent 26%)',
       }
     }
     return styles

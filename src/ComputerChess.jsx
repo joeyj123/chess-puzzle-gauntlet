@@ -76,6 +76,10 @@ function ComputerChessGame({ settings, userId, onClose, onReviewGame }) {
   // Track which color the human is playing
   const humanColorRef = useRef('w')
 
+  // ── Master game tracker for full PGN (game state uses FEN snapshots which
+  //    lose move history; this ref always has the complete move list) ────────
+  const masterGameRef = useRef(new Chess())
+
   // ── Board sizing ─────────────────────────────────────────────────────────
   const boardWrapRef = useRef(null)
   const [boardWrapMounted, setBoardWrapMounted] = useState(false)
@@ -118,19 +122,14 @@ function ComputerChessGame({ settings, userId, onClose, onReviewGame }) {
     terminate()
   }, [terminate])
 
-  // ── Start game ───────────────────────────────────────────────────────────
-  function startGame() {
-    const color = playerColor === 'random'
-      ? (Math.random() < 0.5 ? 'white' : 'black')
-      : playerColor
-
+  // ── Start game (shared between first start and rematch) ─────────────────
+  function _beginGame(color, level) {
     humanColorRef.current = color === 'white' ? 'w' : 'b'
     setOrientation(color)
-
-    const level = DIFFICULTY_LEVELS[diffIdx]
     setSkillLevel(level.skill)
 
     const g = new Chess()
+    masterGameRef.current = new Chess()   // reset master game tracker
     setGame(g)
     setHighlights({})
     setSelectedSq(null)
@@ -144,6 +143,20 @@ function ComputerChessGame({ settings, userId, onClose, onReviewGame }) {
     if (color === 'black') {
       scheduleComputerMove(g, level)
     }
+  }
+
+  function startGame() {
+    const color = playerColor === 'random'
+      ? (Math.random() < 0.5 ? 'white' : 'black')
+      : playerColor
+    _beginGame(color, DIFFICULTY_LEVELS[diffIdx])
+  }
+
+  // Rematch — replay with the exact same color and difficulty, no setup screen.
+  function rematch() {
+    // humanColorRef.current still holds the color from the last game
+    const color = humanColorRef.current === 'w' ? 'white' : 'black'
+    _beginGame(color, DIFFICULTY_LEVELS[diffIdx])
   }
 
   function scheduleComputerMove(currentGame, level) {
@@ -170,6 +183,8 @@ function ComputerChessGame({ settings, userId, onClose, onReviewGame }) {
       const g2 = new Chess(currentGame.fen())
       const mv = g2.move(obj)
       if (!mv) return
+      // Track computer move in the master game so full PGN is always available.
+      try { masterGameRef.current.move({ from: mv.from, to: mv.to, promotion: mv.promotion }) } catch {}
       setLastMove({ from: mv.from, to: mv.to })
       setHighlights({})
       setGame(new Chess(g2.fen()))
@@ -192,6 +207,9 @@ function ComputerChessGame({ settings, userId, onClose, onReviewGame }) {
 
     const mv = game.move({ from, to, promotion: isPromotion ? (promotionPiece ?? 'q') : undefined })
     if (!mv) return false
+
+    // Track human move in master game so full PGN is always available.
+    try { masterGameRef.current.move({ from: mv.from, to: mv.to, promotion: mv.promotion }) } catch {}
 
     if (settings.sounds) playCorrect()
     const newGame = new Chess(game.fen())
@@ -227,14 +245,14 @@ function ComputerChessGame({ settings, userId, onClose, onReviewGame }) {
     if (winner !== 'draw' && settings.sounds) playSolved()
 
     // Persist to game_history (fire-and-forget; never blocks the UI)
-    saveGameToHistory(g, winner, reason)
+    saveGameToHistory(winner)
 
     setResult({ winner, reason })
     setPhase('results')
     return true
   }
 
-  function saveGameToHistory(g, winner, reason) {
+  function saveGameToHistory(winner) {
     if (!supabase || !userId) return
     const outcome = winner === 'player' ? 'win' : winner === 'computer' ? 'loss' : 'draw'
     const level = DIFFICULTY_LEVELS[diffIdx]
@@ -243,7 +261,7 @@ function ComputerChessGame({ settings, userId, onClose, onReviewGame }) {
       opponent_name: `Stockfish ${level.label} (${level.elo})`,
       player_color:  humanColorRef.current === 'w' ? 'white' : 'black',
       game_outcome:  outcome,
-      pgn_string:    g.pgn(),
+      pgn_string:    masterGameRef.current.pgn(),  // full game history
       accuracy_score: null,  // filled in by GameReview engine post-analysis
     }).then(() => {}).catch(err => {
       console.warn('[ComputerChess] saveGameToHistory failed:', err.message)
@@ -371,16 +389,22 @@ function ComputerChessGame({ settings, userId, onClose, onReviewGame }) {
 
           <div className="duel-results-actions">
             <button
-              className="duel-btn duel-btn-secondary"
-              onClick={() => onReviewGame(game.pgn(), humanColorRef.current)}
+              className="duel-btn duel-btn-primary"
+              onClick={rematch}
             >
-              📊 Review Game
+              🔄 Rematch
             </button>
-            <button className="duel-btn duel-btn-primary" onClick={() => setPhase('setup')}>
-              Play Again
+            <button
+              className="duel-btn duel-btn-secondary"
+              onClick={() => onReviewGame(masterGameRef.current.pgn(), humanColorRef.current)}
+            >
+              📊 Review
+            </button>
+            <button className="duel-btn duel-btn-secondary" onClick={() => setPhase('setup')}>
+              🆕 New Game
             </button>
             <button className="duel-btn duel-btn-ghost" onClick={onClose}>
-              Back to Menu
+              Close
             </button>
           </div>
         </div>

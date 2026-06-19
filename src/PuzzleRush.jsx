@@ -192,15 +192,45 @@ export default function PuzzleRush({ allPuzzles, settings, bestScore, leaderboar
     const expected = puzzle.moves[moveIdx]
     if (!expected) return false
 
+    // ── Step 1: Chess legality check ─────────────────────────────────────
+    // Validate the move with chess.js BEFORE checking puzzle correctness.
+    // Illegal moves (e.g. moving into check) snap back silently — no miss
+    // counted, no feedback — the player just chose a bad target.
+    // Wrong-but-legal moves are shown briefly on the board (return true so
+    // react-chessboard keeps the piece at the destination for one frame),
+    // then the board re-renders to the original position because game state
+    // is not updated. This prevents the "only the correct piece ever moves"
+    // tell that revealed the answer.
+    const copy = new Chess(game.fen())
+    const movingPiece = copy.get(from)
+    if (!movingPiece || movingPiece.color !== copy.turn()) return false
+
+    const moveObj = { from, to }
+    if (movingPiece.type === 'p') {
+      const rank = parseInt(to[1])
+      if ((movingPiece.color === 'w' && rank === 8) || (movingPiece.color === 'b' && rank === 1)) {
+        moveObj.promotion = promotion ?? (expected.length > 4 ? expected[4] : 'q')
+      }
+    }
+    const legalResult = copy.move(moveObj)
+    if (!legalResult) return false   // Illegal move — snap back, no miss counted
+
+    // ── Step 2: Correctness check ─────────────────────────────────────────
     const isCorrect = (
       from === expected.slice(0, 2) &&
       to   === expected.slice(2, 4) &&
-      (!expected[4] || promotion === expected[4])
+      (!expected[4] || legalResult.promotion === expected[4])
     )
 
     if (!isCorrect) {
       const next = wrongCount + 1
       setWrongCount(next)
+      // Show red flash on attempted squares. game state is NOT updated so
+      // the board re-renders back to the original position on the next tick.
+      setHighlights({
+        [from]: { background: 'rgba(220,38,38,.45)' },
+        [to]:   { background: 'rgba(220,38,38,.45)' },
+      })
       if (settings.sound) playWrong()
       if (settings.shake) {
         setIsShaking(true)
@@ -214,19 +244,25 @@ export default function PuzzleRush({ allPuzzles, settings, bestScore, leaderboar
       } else {
         setMsg(`✗ Wrong (${next}/${MAX_WRONG} misses)`)
         setMsgType('error')
+        // Clear the red highlights after a moment so the player can try again.
+        advanceTimerRef.current = setTimeout(() => {
+          setHighlights({})
+          setMsg('')
+          setMsgType('info')
+        }, 800)
       }
-      return false
+      // Return true: piece briefly appears at wrong square, then re-renders
+      // back to original (since game state wasn't updated). This ensures all
+      // legal pieces "try to move" the same way — the correct one isn't the
+      // only piece that ever leaves its square.
+      return true
     }
 
-    // Correct move
-    const copy = new Chess(game.fen())
-    const result = copy.move({ from, to, promotion })
-    if (!result) return false
-
+    // ── Step 3: Correct move ──────────────────────────────────────────────
     if (settings.sound) playCorrect()
     setHighlights({
-      [result.from]: { background: 'rgba(34,197,94,.45)' },
-      [result.to]:   { background: 'rgba(34,197,94,.45)' },
+      [legalResult.from]: { background: 'rgba(34,197,94,.45)' },
+      [legalResult.to]:   { background: 'rgba(34,197,94,.45)' },
     })
 
     const nextMoveIdx = moveIdx + 1
@@ -328,8 +364,11 @@ export default function PuzzleRush({ allPuzzles, settings, bestScore, leaderboar
       styles[selectedSq] = { background: 'rgba(100,180,255,0.7)' }
     }
     legalTargets.forEach(sq => {
-      if (!styles[sq]) {
-        styles[sq] = { background: 'radial-gradient(circle, rgba(0,0,0,0.2) 36%, transparent 40%)' }
+      // Always render the dot, even if highlights (e.g. red from a wrong
+      // attempt) are present on the same square. Dot > existing highlight.
+      styles[sq] = {
+        ...(styles[sq] || {}),
+        background: 'radial-gradient(circle, rgba(0,0,0,0.2) 36%, transparent 40%)',
       }
     })
     return styles

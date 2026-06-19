@@ -7,7 +7,7 @@ each work session.
 Chess Puzzle Gauntlet — React + Vite PWA. Repo: github.com/joeyj123/chess-puzzle-gauntlet
 (remote `origin`, branch `main`). Live: chess-puzzle-gauntlet.vercel.app
 
-## Status (Session 13, 2026-06-17)
+## Status (Session 14, 2026-06-18)
 Most Tier 1–4 features are shipped and deployed. Session 13 focused on auth setup,
 Google sign-in across devices, and making vs-Computer moves near-instant.
 
@@ -25,6 +25,42 @@ Google sign-in across devices, and making vs-Computer moves near-instant.
 - Sign-in must **sign out guest first** before OAuth (`signInWithGoogle` does this)
 - Supabase Site URL: `https://chess-puzzle-gauntlet.vercel.app`
 - Redirect URLs include live app + `http://localhost:5173/**`
+
+## Latest code changes (Session 14 — verify pushed)
+
+### Session 14 changes
+
+1. **`src/App.jsx`** — Fixed legal-moves highlight bug (Bug 1).
+   - `squareStyles` memo now always writes the dot gradient for `legalTargets` squares,
+     overriding any existing highlight (yellow from computer's last move, red from a wrong
+     attempt). Previously the condition `styles[sq]?.background ? keep existing : dot` meant
+     dots were invisible on squares already highlighted by the computer's reply.
+   - `onSquareClick` now calls `setHighlights({})` before setting `selectedSquare` /
+     `legalTargets`, so stale highlights never obscure the newly shown dots.
+
+2. **`src/ComputerChess.jsx`** — Fixed Review (Bug 3), added game-end menu (Bug 2), fixed
+   New Game flow (Bug 4).
+   - Added `masterGameRef` (a Chess object that receives every human and computer move via
+     `masterGameRef.current.move(…)`). Fixes the root cause of Review being blank: game
+     state was always reset to `new Chess(fen)` which loses move history, so `game.pgn()`
+     returned an empty string. `masterGameRef.current.pgn()` always has the full game.
+   - `saveGameToHistory` now also uses `masterGameRef.current.pgn()` so the DB row has the
+     real PGN too.
+   - Refactored `startGame` into `_beginGame(color, level)` shared with new `rematch()`.
+   - Results screen now has four buttons: **🔄 Rematch** (same color + difficulty, no setup
+     screen), **📊 Review** (uses masterGameRef PGN — actually works now), **🆕 New Game**
+     (goes to setup/picker — was already `setPhase('setup')` but renamed from "Play Again"
+     to make the intent clear), **Close** (back to main menu).
+
+3. **`src/PuzzleRush.jsx`** — Fixed "3-strings" bug: only correct piece moved (Bug 5).
+   - `commitMove` now validates chess legality with `chess.js` BEFORE checking correctness.
+     Illegal moves → `return false` (snap back silently, no miss counted).
+     Legal-but-wrong moves → red highlights, miss counted, `return true` so react-chessboard
+     briefly shows the piece at the attempted square before the board re-renders back to the
+     original position (game state not updated). All legal pieces now "try to move" the same
+     way; the correct one is no longer the only piece that ever leaves its square.
+   - `customSquareStyles` dot gradient now always overrides existing highlights for legal
+     target squares (same fix as App.jsx).
 
 ## Latest code changes (Session 13 — verify pushed)
 
@@ -70,7 +106,7 @@ git push
 - Session 12: Anonymous auth hook, game_history schema, Puzzle Rush labels, GameReview summaries
 
 ## Next steps
-1. Confirm latest Session 13 commit is on `main` and Vercel shows "Ready".
+1. Confirm latest Session 14 commit is on `main` and Vercel shows "Ready".
 2. Test vs Computer on phone — moves should feel near-instant after first warm-up.
 3. Test Google auth: phone links once, laptop uses **Sign in with Google** only.
 4. Optional: view `game_history` rows in Supabase Table Editor after vs-Computer games.
