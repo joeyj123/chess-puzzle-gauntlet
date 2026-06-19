@@ -128,32 +128,39 @@ function GameReviewInner({ pgn, playerColor = 'w', settings, onClose }) {
       setPositions(fens)
       setAnalysisPhase('analyzing')
 
-      // Analyze each position pair
+      // ── Evaluate every position exactly once ──────────────────────────────
+      // "After move i" is the same position as "before move i+1", so a
+      // single pass over all (total + 1) positions gives us every score we
+      // need — half the Stockfish searches of evaluating each position twice.
+      const scores     = new Array(total + 1).fill(0)
+      const bestMoves   = new Array(total + 1).fill(null)
+
+      for (let i = 0; i <= total; i++) {
+        if (abortRef.current) return
+        const { score, bestMove } = await analyzePosition(fens[i], ANALYSIS_DEPTH)
+        if (abortRef.current) return
+        scores[i]     = score
+        bestMoves[i]  = bestMove
+        setProgress(Math.min(i + 1, total))
+      }
+
+      // Clamp mate scores, then build per-move classification from the
+      // before/after pair we already have.
+      const clamp = (s) => Math.max(-9999, Math.min(9999, s))
       const results = []
       let wAccSum = 0, wCount = 0
       let bAccSum = 0, bCount = 0
 
       for (let i = 0; i < total; i++) {
-        if (abortRef.current) return
-
-        // Analyze position BEFORE the move
-        const { score: scoreBefore, bestMove } = await analyzePosition(fens[i], ANALYSIS_DEPTH)
-        if (abortRef.current) return
-
-        // Analyze position AFTER the move
-        const { score: scoreAfter } = await analyzePosition(fens[i + 1], ANALYSIS_DEPTH)
-        if (abortRef.current) return
-
         // cpLoss = score_before + score_after
         // (score_after is from opponent's perspective, so add = flip)
-        // Clamp mate scores
-        const clamp = (s) => Math.max(-9999, Math.min(9999, s))
-        const cpLoss = Math.max(0, clamp(scoreBefore) + clamp(scoreAfter))
+        const cpLoss = Math.max(0, clamp(scores[i]) + clamp(scores[i + 1]))
 
         const classification = classifyMove(cpLoss)
         const accuracy       = moveAccuracy(cpLoss)
         const mv             = history[i]
         const color          = mv.color  // 'w' | 'b'
+        const bestMove       = bestMoves[i]
 
         results.push({
           ply:      i + 1,
@@ -171,10 +178,9 @@ function GameReviewInner({ pgn, playerColor = 'w', settings, onClose }) {
 
         if (color === 'w') { wAccSum += accuracy; wCount++ }
         else               { bAccSum += accuracy; bCount++ }
-
-        setProgress(i + 1)
-        setMoveData([...results])
       }
+
+      setMoveData(results)
 
       setAccuracyW(wCount > 0 ? Math.round(wAccSum / wCount) : null)
       setAccuracyB(bCount > 0 ? Math.round(bAccSum / bCount) : null)

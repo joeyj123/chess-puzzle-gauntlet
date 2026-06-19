@@ -19,6 +19,51 @@ import { supabase } from './supabaseClient'
 
 const MIN_BOARD = 160
 
+// ── Session persistence ───────────────────────────────────────────────────
+// Keeps an in-progress (or just-finished) vs-Computer game in localStorage so
+// backgrounding the tab/PWA to send a text — or the mobile browser reclaiming
+// the page under memory pressure — doesn't wipe the game. Restoring is a
+// synchronous localStorage read + PGN replay, so it's effectively instant,
+// no spinner needed.
+const SESSION_KEY = 'cpg-computer-session'
+
+/** Used by App.jsx to decide whether to auto-open this overlay on load. */
+export function hasSavedComputerGame() {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY)
+    if (!raw) return false
+    const data = JSON.parse(raw)
+    return data?.phase === 'playing' || data?.phase === 'results'
+  } catch {
+    return false
+  }
+}
+
+function loadSession() {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY)
+    if (!raw) return null
+    const data = JSON.parse(raw)
+    if (!data || (data.phase !== 'playing' && data.phase !== 'results')) return null
+    const g = new Chess()
+    if (data.pgn) {
+      try { g.loadPgn(data.pgn) } catch { return null } // corrupt save — start clean
+    }
+    return { ...data, game: g }
+  } catch {
+    return null
+  }
+}
+
+function saveSession(snapshot) {
+  try {
+    if (!snapshot) { localStorage.removeItem(SESSION_KEY); return }
+    localStorage.setItem(SESSION_KEY, JSON.stringify(snapshot))
+  } catch {
+    // ignore (private browsing / storage full)
+  }
+}
+
 function uciToObj(uci) {
   return {
     from: uci.slice(0, 2),
@@ -59,26 +104,60 @@ export default function ComputerChess(props) {
 // ComputerChessGame props: settings, userId, onClose, onReviewGame
 
 function ComputerChessGame({ settings, userId, onClose, onReviewGame }) {
-  const [phase, setPhase]         = useState('setup')   // 'setup' | 'playing' | 'results'
-  const [diffIdx, setDiffIdx]     = useState(1)          // index into DIFFICULTY_LEVELS
-  const [playerColor, setPlayerColor] = useState('white') // 'white' | 'black' | 'random'
+  // Restore an in-progress/just-finished game once, on first render only.
+  const restoredRef = useRef(undefined)
+  if (restoredRef.current === undefined) restoredRef.current = loadSession()
+  const restored = restoredRef.current
+
+  const [phase, setPhase]         = useState(restored ? restored.phase : 'setup')   // 'setup' | 'playing' | 'results'
+  const [diffIdx, setDiffIdx]     = useState(restored?.diffIdx ?? 1)          // index into DIFFICULTY_LEVELS
+  const [playerColor, setPlayerColor] = useState(restored?.playerColor ?? 'white') // 'white' | 'black' | 'random'
 
   // ── Game state ───────────────────────────────────────────────────────────
-  const [game,         setGame]         = useState(() => new Chess())
-  const [orientation,  setOrientation]  = useState('white')
+  const [game,         setGame]         = useState(() => restored ? restored.game : new Chess())
+  const [orientation,  setOrientation]  = useState(restored?.orientation ?? 'white')
   const [highlights,   setHighlights]   = useState({})
   const [selectedSq,   setSelectedSq]   = useState(null)
   const [legalTargets, setLegalTargets] = useState([])
   const [lastMove,     setLastMove]     = useState(null)
   const [thinking,     setThinking]     = useState(false)
-  const [result,       setResult]       = useState(null) // { winner: 'player'|'computer'|'draw', reason }
+  const [result,       setResult]       = useState(restored?.result ?? null) // { winner: 'player'|'computer'|'draw', reason }
 
   // Track which color the human is playing
-  const humanColorRef = useRef('w')
+  const humanColorRef = useRef(restored?.humanColor ?? 'w')
 
   // ── Master game tracker for full PGN (game state uses FEN snapshots which
   //    lose move history; this ref always has the complete move list) ────────
-  const masterGameRef = useRef(new Chess())
+  const masterGameRef = useRef()
+  if (!masterGameRef.current) {
+    masterGameRef.current = new Chess()
+    if (restored?.pgn) {
+      try { masterGameRef.current.loadPgn(restored.pgn) } catch { /* ignore */ }
+    }
+  }
+
+  // ── Persist session on every relevant change ─────────────────────────────
+  // A plain localStorage write is synchronous and cheap, so this runs after
+  // every move/phase change with no perceptible cost. Clearing happens only
+  // when we return to 'setup' (explicit New Game / nothing in progress) —
+  // closing the overlay mid-game deliberately leaves the save in place so
+  // reopening (or relaunching the PWA) drops the player right back in.
+  useEffect(() => {
+    if (phase === 'setup') {
+      saveSession(null)
+      return
+    }
+    saveSession({
+      phase,
+      diffIdx,
+      playerColor,
+      humanColor: humanColorRef.current,
+      orientation,
+      pgn: masterGameRef.current.pgn(),
+      result,
+      savedAt: Date.now(),
+    })
+  }, [phase, game, result, diffIdx, playerColor, orientation])
 
   // ── Board sizing ─────────────────────────────────────────────────────────
   const boardWrapRef = useRef(null)
@@ -121,6 +200,21 @@ function ComputerChessGame({ settings, userId, onClose, onReviewGame }) {
     clearTimeout(computerTimerRef.current)
     terminate()
   }, [terminate])
+
+  // If we restored mid-game and it was the computer's turn to move (e.g. the
+  // tab was killed right as the human moved, before the reply came back),
+  // pick the computer move back up once on mount.
+  const resumeHandledRef = useRef(false)
+  useEffect(() => {
+    if (resumeHandledRef.current) return
+    resumeHandledRef.current = true
+    if (!restored || restored.phase !== 'playing') return
+    try {
+      if (!isHumanTurn(game) && !game.isGameOver()) {
+        scheduleComputerMove(game, DIFFICULTY_LEVELS[diffIdx])
+      }
+    } catch { /* ignore */ }
+  }, [])
 
   // ── Start game (shared between first start and rematch) ─────────────────
   function _beginGame(color, level) {

@@ -13,7 +13,7 @@ import { buildExplainSteps } from './data/explanations'
 import PuzzleRush from './PuzzleRush'
 import MultiplayerDuel from './MultiplayerDuel'
 import LiveChess from './LiveChess'
-import ComputerChess from './ComputerChess'
+import ComputerChess, { hasSavedComputerGame } from './ComputerChess'
 import GameReview from './GameReview'
 import { useAuth } from './useAuth'
 import { supabase as supabaseClient } from './supabaseClient'
@@ -87,7 +87,10 @@ export default function App() {
   const [rushOpen, setRushOpen] = useState(false)
   const [duelOpen,      setDuelOpen]      = useState(false)
   const [chessOpen,     setChessOpen]     = useState(false)
-  const [computerOpen,  setComputerOpen]  = useState(false)
+  // Auto-reopen straight into an in-progress (or just-finished) vs-Computer
+  // game if one was saved — covers the tab/PWA getting backgrounded or
+  // killed (e.g. to send a text) and reopened later.
+  const [computerOpen,  setComputerOpen]  = useState(() => hasSavedComputerGame())
   const [reviewOpen,    setReviewOpen]    = useState(false)
   const [reviewPgn,     setReviewPgn]     = useState('')
   const [reviewColor,   setReviewColor]   = useState('w')

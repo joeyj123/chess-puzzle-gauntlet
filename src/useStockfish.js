@@ -141,7 +141,11 @@ export function useStockfish() {
    * Returns { score: number (cp from side-to-move perspective), bestMove: string|null }
    * score is clamped to ±10000 for mate.
    */
-  const analyzePosition = useCallback((fen, depth = 10) => {
+  // `movetime` caps worst-case time per position — Stockfish stops at
+  // whichever of depth/movetime hits first. Depth 10 normally finishes well
+  // under this in the lite (non-NNUE) engine, but a few complex middlegame
+  // positions per game could otherwise run long with no cap at all.
+  const analyzePosition = useCallback((fen, depth = 10, movetime = 400) => {
     return new Promise((resolve) => {
       const w = getWorker()
       if (!w) { resolve({ score: 0, bestMove: null }); return }
@@ -173,7 +177,7 @@ export function useStockfish() {
         }
       }
       w.postMessage('position fen ' + fen)
-      w.postMessage(`go depth ${depth}`)
+      w.postMessage(`go depth ${depth} movetime ${movetime}`)
     })
   }, [])
 
