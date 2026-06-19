@@ -64,7 +64,7 @@ export default function App() {
   const [loadError,   setLoadError]   = useState(null)
   const [noMatch,     setNoMatch]     = useState(false)
   const [settings,    updateSettings] = useSettings()
-  const { user, isAnonymous, authError, googleAlreadyLinked, signInAnonymously, signInWithGoogle, linkGoogle } = useAuth()
+  const { user, isAnonymous, authError, googleAlreadyLinked, signInAnonymously, signInWithGoogle, linkGoogle, signOut } = useAuth()
   const [hintLevel,   setHintLevel]   = useState(0)
   const [history,     setHistory]     = useState([])
   const [wrongFen,    setWrongFen]    = useState(null)
@@ -1334,10 +1334,26 @@ export default function App() {
                     )}
                   </>
                 ) : user ? (
-                  <p className="settings-hint">
-                    ✅ Signed in{user.email ? ` as ${user.email}` : ' with Google'}.
-                    Game history is synced to your account.
-                  </p>
+                  <>
+                    <p className="settings-hint">
+                      ✅ Signed in{user.email ? ` as ${user.email}` : ' with Google'}.
+                      Game history is synced to your account.
+                    </p>
+                    <button
+                      className="btn btn-secondary"
+                      style={{ marginTop: '0.5rem', width: '100%' }}
+                      onClick={async () => {
+                        if (!window.confirm('Sign out on this device? You can sign back in with Google anytime.')) return
+                        const { error } = await signOut()
+                        if (error) {
+                          const msg = typeof error === 'string' ? error : error.message
+                          alert('Could not sign out: ' + msg)
+                        }
+                      }}
+                    >
+                      🚪 Sign Out
+                    </button>
+                  </>
                 ) : supabaseClient ? (
                   <>
                     <p className="settings-hint">

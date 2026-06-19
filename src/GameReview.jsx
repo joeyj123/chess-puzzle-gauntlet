@@ -160,7 +160,24 @@ function GameReviewInner({ pgn, playerColor = 'w', settings, onClose }) {
         const accuracy       = moveAccuracy(cpLoss)
         const mv             = history[i]
         const color          = mv.color  // 'w' | 'b'
-        const bestMove       = bestMoves[i]
+        const rawBestMove    = bestMoves[i]
+        const bestMove       = rawBestMove !== mv.lan ? rawBestMove : null  // only show if different from played
+
+        // Convert the engine's preferred move (UCI, e.g. "e7e5") into SAN
+        // (e.g. "e5") for human-readable feedback text — needs the position
+        // *before* this move, which we already have as fens[i].
+        let bestMoveSan = null
+        if (bestMove) {
+          try {
+            const probe = new Chess(fens[i])
+            const res = probe.move({
+              from: bestMove.slice(0, 2),
+              to:   bestMove.slice(2, 4),
+              promotion: bestMove.slice(4) || undefined,
+            })
+            bestMoveSan = res?.san ?? null
+          } catch { /* illegal/unparseable UCI — skip the SAN hint */ }
+        }
 
         results.push({
           ply:      i + 1,
@@ -171,7 +188,8 @@ function GameReviewInner({ pgn, playerColor = 'w', settings, onClose }) {
           cpLoss,
           classification,
           accuracy,
-          bestMove: bestMove !== mv.lan ? bestMove : null,  // only show if different from played
+          bestMove,
+          bestMoveSan,
           fenBefore: fens[i],
           fenAfter:  fens[i + 1],
         })
@@ -260,7 +278,9 @@ function GameReviewInner({ pgn, playerColor = 'w', settings, onClose }) {
       {/* Current move classification + dynamic summary */}
       {currentMove && (() => {
         const cfg = CLASS_CONFIG[currentMove.classification.cls] ?? CLASS_CONFIG.blunder
-        const summary = getClassificationSummary(currentMove.classification.cls, currentMove.cpLoss)
+        const summary = getClassificationSummary(currentMove.classification.cls, currentMove.cpLoss, {
+          bestMoveSan: currentMove.bestMoveSan,
+        })
         return (
           <div className="review-move-badge-wrap">
             <div className="review-move-badge" style={{ color: cfg.color }}>
@@ -301,7 +321,7 @@ function GameReviewInner({ pgn, playerColor = 'w', settings, onClose }) {
       {/* Best move hint */}
       {currentMove?.bestMove && (
         <p className="review-best-move-hint">
-          Best: <strong>{currentMove.bestMove.slice(0, 2)}→{currentMove.bestMove.slice(2, 4)}</strong>
+          Best: <strong>{currentMove.bestMoveSan ?? `${currentMove.bestMove.slice(0, 2)}→${currentMove.bestMove.slice(2, 4)}`}</strong>
           <span className="review-best-arrow"> (green arrow)</span>
         </p>
       )}

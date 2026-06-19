@@ -26,7 +26,83 @@ Google sign-in across devices, and making vs-Computer moves near-instant.
 - Supabase Site URL: `https://chess-puzzle-gauntlet.vercel.app`
 - Redirect URLs include live app + `http://localhost:5173/**`
 
-## Latest code changes (Session 15 — verify pushed)
+## Latest code changes (Session 16 — verify pushed)
+
+### Session 16 changes — root-caused & fixed the "bot plays randomly / Review takes 10 min / always 100%" bug
+
+All three symptoms the user reported (1000-difficulty bot hanging its queen and
+not recapturing regardless of difficulty, Game Review taking ~10 minutes, and
+both players always showing 100% accuracy) turned out to be **one root cause**:
+the Stockfish engine never actually worked in production.
+
+1. **`vite.config.js`** — the `copy-stockfish` plugin only ever copied a single
+   `.js` file into `public/`, and `public/stockfish.js` had **no matching `.wasm`
+   file at all**. Separately, the candidate list's first few paths
+   (`stockfish/src/stockfish.js`, `stockfish-16.js`) don't exist in the
+   installed `stockfish@16.0.0` package (v16 only ships NNUE builds), so it was
+   silently falling through to `stockfish-nnue-16.js` — the **multi-threaded**
+   build, which requires `SharedArrayBuffer` (only available with COOP/COEP
+   response headers — we have no `vercel.json`, so Vercel doesn't send them)
+   and which also spawns a pthread worker from a hardcoded `stockfish.worker.js`
+   filename that was never copied either.
+   Net effect: the Stockfish worker never sent back `readyok`/`bestmove` for
+   *any* call, in production, ever.
+   - Fixed by switching the candidate list to `stockfish-nnue-16-single.js`
+     (single-threaded NNUE — no `SharedArrayBuffer`, no extra worker file) and
+     having the plugin also copy that build's `.wasm` companion file into
+     `public/` under its own original name (the engine's wasm loader looks for
+     a literal hardcoded filename next to the script, not a renamed one).
+     Verified the copy logic standalone: produces a byte-identical
+     `stockfish.js` + `stockfish-nnue-16-single.wasm` pair in `public/`.
+   - This explains all three symptoms: every "computer move" was silently
+     falling back to `ComputerChess.jsx`'s random-legal-move fallback (engine
+     never responded) regardless of selected difficulty; every Game Review
+     position was hitting `analyzePosition`'s 20s safety-timeout one by one
+     (≈20s × ~30 positions ≈ the reported 10 minutes); and every position's
+     score defaulted to `0` on timeout, so every move's `cpLoss` computed to
+     `0` → classified "Best" → 100% accuracy for both sides every game.
+   - `.gitignore` updated to also ignore the generated `.wasm` companion file.
+
+2. **`src/useStockfish.js`** — `movetimeForSkill(skill)` added: scales the
+   computer's per-move search time from 80ms (skill 0) up to ~260ms (skill 20)
+   instead of a flat 80ms for every difficulty. Still feels instant to a human,
+   but meaningfully more search budget at higher difficulties — the
+   speed/strength middle ground requested, given Stockfish 16 only ships NNUE
+   builds (no separate "lite" engine exists to swap in; strength now also
+   benefits from the engine actually working per fix #1 above).
+   - `getComputerMove(fen, movetime)` now takes an optional movetime override;
+     `ComputerChess.jsx` passes `movetimeForSkill(lv.skill)` at both call sites
+     (warm-up + actual move).
+   - `getClassificationSummary(cls, cpLoss, extra)` rewritten to give specific
+     per-move feedback instead of one canned sentence per category — now
+     reports the actual pawn-equivalent eval swing and names the engine's
+     preferred move (in SAN, e.g. "Nf3") when it differs from what was played.
+
+3. **`src/GameReview.jsx`** — each analyzed move now also computes
+   `bestMoveSan` (the engine's UCI best-move converted to algebraic notation
+   via a `chess.js` probe on the pre-move position, wrapped in try/catch) so
+   both the move-summary text and the "Best: …" hint under the board show a
+   readable move like "Nf3" instead of raw squares like "g1→f3".
+
+4. **`src/useAuth.js` + `src/App.jsx`** — added a Sign Out button (Account
+   settings section). Signs out of Supabase on this device and immediately
+   re-establishes a fresh guest session. Note: Supabase sessions are
+   per-device — signing in on a second device does **not** auto-sign-out the
+   first one (no built-in single-session enforcement); multi-device
+   simultaneous sign-in with the same Google account already works via
+   "Sign in with Google" for devices after the first.
+
+### Still to do (next chat)
+- Multiplayer (Live Chess / Duel) game history — persist results to a table,
+  surface in a Stats tab, make reviewable. Not started. Needs to explicitly
+  exclude vs-Computer games per request.
+- Game Review overlay: top accuracy bar is obscured by phone notch/front
+  camera on some devices — needs safe-area padding or scroll scoped to just
+  the Review overlay. Not started.
+- **User should retest after this session's fix lands**: vs-Computer play at
+  each difficulty should now show real strategic differences (not random
+  blunders), and Game Review should finish in well under a minute with varied,
+  non-100% accuracy scores.
 
 ### Session 15 changes
 

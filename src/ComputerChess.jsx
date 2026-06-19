@@ -14,7 +14,7 @@ import { Chess } from 'chess.js'
 import { Chessboard } from 'react-chessboard'
 import { getBoardTheme } from './data/boardThemes'
 import { playCorrect, playWrong, playSolved } from './sounds'
-import { useStockfish, DIFFICULTY_LEVELS } from './useStockfish'
+import { useStockfish, DIFFICULTY_LEVELS, movetimeForSkill } from './useStockfish'
 import { supabase } from './supabaseClient'
 
 const MIN_BOARD = 160
@@ -193,6 +193,7 @@ function ComputerChessGame({ settings, userId, onClose, onReviewGame }) {
     setSkillLevel(DIFFICULTY_LEVELS[diffIdx].skill)
     getComputerMove(
       'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+      movetimeForSkill(DIFFICULTY_LEVELS[diffIdx].skill),
     ).catch(() => {})
   }, [diffIdx, getComputerMove, setSkillLevel])
 
@@ -261,7 +262,7 @@ function ComputerChessGame({ settings, userId, onClose, onReviewGame }) {
       setThinking(true)
       let uci = null
       try {
-        uci = await getComputerMove(currentGame.fen())
+        uci = await getComputerMove(currentGame.fen(), movetimeForSkill(lv.skill))
       } catch (err) {
         console.error('[ComputerChess] getComputerMove error:', err)
       }

@@ -223,6 +223,28 @@ export function useAuth() {
     return { data, error: { message: 'No OAuth URL returned from Supabase' } }
   }, [user, authError, signInAnonymously])
 
+  // Sign out of whatever account is active on THIS device and drop back to a
+  // fresh guest session. Other devices signed in with the same Google account
+  // are untouched — Supabase sessions are per-device, so signing in on a
+  // second device never kicks the first one out automatically. This just
+  // gives this device a clean way to leave/switch accounts without needing
+  // a manual storage-clear/refresh.
+  const signOut = useCallback(async () => {
+    if (!supabase) return { error: { message: 'Supabase not configured' } }
+    setAuthError(null)
+    const { error } = await supabase.auth.signOut()
+    if (error) {
+      console.error('[Auth] signOut failed:', error.message)
+      return { error }
+    }
+    setUser(null)
+    setGoogleAlreadyLinked(false)
+    // Immediately re-establish a guest session so the app isn't left signed
+    // out — matches the normal "first load" state.
+    await signInAnonymously()
+    return { error: null }
+  }, [signInAnonymously])
+
   const isAnonymous = userIsAnonymous(user)
 
   return {
@@ -234,5 +256,6 @@ export function useAuth() {
     signInAnonymously,
     signInWithGoogle,
     linkGoogle,
+    signOut,
   }
 }

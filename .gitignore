@@ -7,3 +7,6 @@ dist/
 .env*.local
 # Auto-copied from node_modules/stockfish on build
 public/stockfish.js
+public/stockfish-nnue-16-single.wasm
+public/stockfish-nnue-16-no-simd.wasm
+public/stockfish*.wasm

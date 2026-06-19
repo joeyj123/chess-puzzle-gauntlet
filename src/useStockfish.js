@@ -11,10 +11,19 @@
 
 import { useRef, useCallback } from 'react'
 
-// Computer play: movetime-only (instant). Skill Level controls strength.
+// Computer play: movetime-only (near-instant). Skill Level controls strength,
+// and movetime is scaled per difficulty (see movetimeForSkill) — weaker
+// opponents reply instantly, stronger ones get a bit more think time.
+// COMPUTER_MOVETIME_MS is the floor (used at Skill Level 0).
 export const COMPUTER_MOVETIME_MS = 80
 
-// Skill Level controls strength; movetime is always COMPUTER_MOVETIME_MS (instant).
+// We already ship the strongest available engine build — Stockfish 16 with
+// the full NNUE network (see vite.config.js / node_modules/stockfish, v16
+// only distributes NNUE builds; there is no separate "lite" classical-eval
+// build to swap in). So the strength/speed knob isn't "which engine" — it's
+// how much of that engine's time budget each difficulty gets, via
+// movetimeForSkill below. Skill Level still injects intentional weaker play
+// independent of search time.
 export const DIFFICULTY_LEVELS = [
   { label: 'Beginner',         skill: 0,  elo: '500'  },
   { label: 'Novice',           skill: 2,  elo: '750'  },
@@ -42,21 +51,27 @@ export function classifyMove(cpLoss) {
 }
 
 /**
- * Returns a one-sentence explanation of a move classification for display
- * in the Game Review panel.
+ * Returns a one-to-two sentence explanation of a move classification for
+ * display in the Game Review panel. `extra.bestMoveSan` (the engine's
+ * preferred move, in algebraic notation) is folded in when available so the
+ * feedback says *what* would have been better, not just *how bad* this was.
  */
-export function getClassificationSummary(cls, cpLoss) {
+export function getClassificationSummary(cls, cpLoss, extra = {}) {
+  const { bestMoveSan } = extra
+  const pawns = (cpLoss / 100).toFixed(1)
+  const alt = bestMoveSan ? ` The engine preferred ${bestMoveSan} instead.` : ''
+
   switch (cls) {
     case 'best':
-      return 'Perfect move — the engine agrees this is the best continuation.'
+      return 'Best move available — this matches (or ties) the engine\'s top pick.'
     case 'excellent':
-      return `Excellent move with only a ${cpLoss} centipawn loss — nearly optimal.`
+      return `Excellent — only a ${pawns}-pawn dip in evaluation, essentially as good as the top engine line.${alt}`
     case 'good':
-      return `Solid move. A ${cpLoss} centipawn loss is acceptable in most positions.`
+      return `Reasonable move, but it gives up about ${pawns} pawns of evaluation compared to the best option.${alt}`
     case 'inaccuracy':
-      return `Slight inaccuracy (−${cpLoss} cp) — a better option was available.`
+      return `Inaccuracy — this costs roughly ${pawns} pawns of evaluation.${alt || ' A stronger continuation was available.'}`
     case 'blunder':
-      return `Blunder! This move loses ${cpLoss} centipawns and significantly changes the evaluation.`
+      return `Blunder — this swings the evaluation by about ${pawns} pawns in the opponent's favor.${alt || ' This is a significant error worth reviewing.'}`
     default:
       return ''
   }
@@ -65,6 +80,18 @@ export function getClassificationSummary(cls, cpLoss) {
 // Per-move accuracy score (0–100)
 export function moveAccuracy(cpLoss) {
   return Math.max(0, 100 * Math.exp(-cpLoss / 150))
+}
+
+/**
+ * Search time (ms) for the computer's reply, scaled by Skill Level.
+ * 80ms @ skill 0 → 260ms @ skill 20. Still feels instant to a human (under
+ * the ~300-400ms threshold where a delay becomes noticeable), but roughly
+ * triples the node budget at the top difficulties, which meaningfully cuts
+ * down on missed one-move tactics (like an undefended recapture) without
+ * making play feel sluggish at any level.
+ */
+export function movetimeForSkill(skill) {
+  return Math.round(COMPUTER_MOVETIME_MS + (Math.max(0, Math.min(20, skill)) / 20) * 180)
 }
 
 export function useStockfish() {
@@ -131,9 +158,13 @@ export function useStockfish() {
     })
   }, [send])
 
-  /** Instant computer move — movetime only at all difficulty levels. Strength via Skill Level. */
-  const getComputerMove = useCallback((fen) => {
-    return getBestMove(fen, 0, COMPUTER_MOVETIME_MS, true)
+  /**
+   * Near-instant computer move — movetime only (no depth target). Strength
+   * via Skill Level; pass `movetime` (see movetimeForSkill) to scale think
+   * time per difficulty. Defaults to the fastest/lowest-difficulty timing.
+   */
+  const getComputerMove = useCallback((fen, movetime = COMPUTER_MOVETIME_MS) => {
+    return getBestMove(fen, 0, movetime, true)
   }, [getBestMove])
 
   /**
