@@ -41,6 +41,24 @@ function getMateHint(themes = []) {
   return 'Find the best move'
 }
 
+// Google sign-in/link leaves the SPA for a full-page OAuth redirect, then
+// comes back via a fresh page load — useAuth.js sets this flag (sessionStorage)
+// right before redirecting away. On the reload that follows, this lets us
+// tell "we're returning from OAuth" apart from "the tab was just backgrounded
+// and reopened" (which is what the saved-game auto-resume below is for), so
+// we can skip auto-resuming the old bot game and instead land back on
+// Settings — otherwise sign-in/link silently succeeds behind a reopened
+// game-over screen and looks like it did nothing.
+function consumeOAuthPending() {
+  try {
+    const pending = sessionStorage.getItem('cpg-oauth-pending') === '1'
+    if (pending) sessionStorage.removeItem('cpg-oauth-pending')
+    return pending
+  } catch {
+    return false
+  }
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function App() {
@@ -79,18 +97,23 @@ export default function App() {
   const [dailyInfo,   setDailyInfo]   = useState(null) // { puzzle, dateStr }
   const [isDaily,     setIsDaily]     = useState(false)
   const [showBreakdown, setShowBreakdown] = useState(false)
+  // True for exactly the one page load that follows an OAuth redirect back
+  // from Google — see consumeOAuthPending() above.
+  const [oauthReturn] = useState(consumeOAuthPending)
   // Full-screen menu overlay. `activePanel` is null while the top-level menu
   // list is showing, or 'stats' | 'achievements' | 'settings' once one of
   // those is opened from the list.
-  const [menuOpen, setMenuOpen] = useState(false)
-  const [activePanel, setActivePanel] = useState(null)
+  const [menuOpen, setMenuOpen] = useState(() => oauthReturn)
+  const [activePanel, setActivePanel] = useState(() => oauthReturn ? 'settings' : null)
   const [rushOpen, setRushOpen] = useState(false)
   const [duelOpen,      setDuelOpen]      = useState(false)
   const [chessOpen,     setChessOpen]     = useState(false)
   // Auto-reopen straight into an in-progress (or just-finished) vs-Computer
   // game if one was saved — covers the tab/PWA getting backgrounded or
-  // killed (e.g. to send a text) and reopened later.
-  const [computerOpen,  setComputerOpen]  = useState(() => hasSavedComputerGame())
+  // killed (e.g. to send a text) and reopened later. Skipped on the one load
+  // right after an OAuth redirect (see oauthReturn above) so sign-in/link
+  // result is actually visible instead of being hidden behind the old game.
+  const [computerOpen,  setComputerOpen]  = useState(() => !oauthReturn && hasSavedComputerGame())
   const [reviewOpen,    setReviewOpen]    = useState(false)
   const [reviewPgn,     setReviewPgn]     = useState('')
   const [reviewColor,   setReviewColor]   = useState('w')

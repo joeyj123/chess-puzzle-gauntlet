@@ -1831,8 +1831,12 @@
   gap: .4rem;
   /* Generous top padding with its own floor, not just env(safe-area-inset-top)
      alone — many Android punch-hole cameras don't actually report a
-     safe-area inset, so a 0 fallback there isn't enough clearance. */
-  padding: max(1.5rem, env(safe-area-inset-top, 1.5rem)) .75rem 1rem;
+     safe-area inset, so a 0 fallback there isn't enough clearance. Also add
+     a buffer on TOP of the reported inset (not just the floor) since on
+     Dynamic Island devices (e.g. iPhone 16 Pro Max) the reported inset lands
+     right at the island's edge with no breathing room, so content drawn
+     exactly at that offset still visually touches/clips behind it. */
+  padding: max(3.25rem, calc(env(safe-area-inset-top, 1.5rem) + 16px)) .75rem 1rem;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
 }

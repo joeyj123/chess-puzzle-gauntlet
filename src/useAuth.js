@@ -64,6 +64,18 @@ export function useAuth() {
 
   const redirectTo = () => window.location.origin + window.location.pathname
 
+  // OAuth (Google sign-in/link) leaves the SPA entirely and comes back via a
+  // full page reload — React state (which panel was open, the resumed
+  // vs-Computer game, etc.) is gone. Without this flag, App.jsx's "auto-
+  // reopen the saved game on load" logic fires on that reload exactly like
+  // it would after the tab being backgrounded, so the user lands back on the
+  // bot-game screen with no visible sign that sign-in did anything. Setting
+  // this right before leaving for Google lets App.jsx detect "we're coming
+  // back from OAuth" on the next load and reopen Settings instead.
+  const markOAuthPending = () => {
+    try { sessionStorage.setItem('cpg-oauth-pending', '1') } catch { /* ignore */ }
+  }
+
   const signInAnonymously = useCallback(async () => {
     if (!supabase) {
       setAuthError('Supabase not configured')
@@ -103,6 +115,7 @@ export function useAuth() {
       return { data, error }
     }
     if (data?.url) {
+      markOAuthPending()
       window.location.href = data.url
       return { data, error: null }
     }
@@ -217,6 +230,7 @@ export function useAuth() {
       return { data, error }
     }
     if (data?.url) {
+      markOAuthPending()
       window.location.href = data.url
       return { data, error: null }
     }

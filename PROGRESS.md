@@ -150,6 +150,36 @@ Supabase Dashboard → SQL Editor (safe to re-run; only needed because the
 table already existed before `game_mode` did). New installs running the full
 `schema.sql` already get the column.
 
+### Session 18 changes — two bugs found while testing Session 17 on an iPhone 16 Pro Max
+
+1. **`src/App.css`** — Session 17's notch fix wasn't enough clearance on
+   Dynamic Island devices: the accuracy pills were still touching/behind the
+   camera cutout. `.review-overlay`'s top padding floor raised from `1.5rem`
+   to `3.25rem`, and on top of that, now adds a `16px` buffer **on top of**
+   the reported `env(safe-area-inset-top)` (not just as a floor) — the
+   reported inset lands right at the island's edge with zero breathing room,
+   so content drawn exactly there still visually clips it. Still scoped only
+   to `.review-overlay`.
+
+2. **Sign in with Google / Link Google "did nothing"** — actually a
+   navigation bug, not an auth bug. Tapping either button does a real
+   full-page redirect to Google and back (not a SPA route change), which
+   wipes all React state. `App.jsx`'s `computerOpen` initializes from
+   `hasSavedComputerGame()` — true for a *finished* game too, by design, so
+   backgrounding/reopening the PWA mid-game resumes it. But that same check
+   fired on the OAuth-return reload too, so the user got dumped straight back
+   onto the old bot game's game-over screen with no visible sign anything
+   happened — sign-in had actually completed underneath it.
+   - **`src/useAuth.js`** — `signInWithGoogle`/`linkGoogle` now call
+     `markOAuthPending()` (sets `sessionStorage['cpg-oauth-pending'] = '1'`)
+     right before `window.location.href = data.url`.
+   - **`src/App.jsx`** — new `consumeOAuthPending()` reads + clears that flag
+     once on mount (`oauthReturn`). When true: `computerOpen`'s initializer
+     skips `hasSavedComputerGame()` (so the old game doesn't reopen), and
+     `menuOpen`/`activePanel` initialize open to `'settings'` instead, so the
+     user lands back exactly where they'd expect and can see "Signed in as
+     …". Normal app loads (no pending OAuth flag) are unaffected.
+
 ### Session 15 changes
 
 1. **`src/useStockfish.js` + `src/GameReview.jsx`** — Game Review was taking
