@@ -353,6 +353,7 @@ function ComputerChessGame({ settings, userId, onClose, onReviewGame }) {
     const level = DIFFICULTY_LEVELS[diffIdx]
     supabase.from('game_history').insert({
       user_id:       userId,
+      game_mode:     'computer',
       opponent_name: `Stockfish ${level.label} (${level.elo})`,
       player_color:  humanColorRef.current === 'w' ? 'white' : 'black',
       game_outcome:  outcome,

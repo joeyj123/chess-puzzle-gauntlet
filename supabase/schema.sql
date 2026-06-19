@@ -58,11 +58,14 @@ GRANT EXECUTE ON FUNCTION public.handle_new_user() TO supabase_auth_admin;
 GRANT INSERT ON TABLE public.profiles TO supabase_auth_admin;
 
 -- ── game_history ──────────────────────────────────────────────────────────────
--- One row per completed game (vs Computer for now; expand to multiplayer later).
+-- One row per completed game — vs Computer or multiplayer (Live Chess).
+-- NOTE: if this table already exists in your project from before game_mode
+-- existed, run supabase/add-game-mode.sql too (ALTER TABLE doesn't run here).
 
 CREATE TABLE IF NOT EXISTS game_history (
   id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id        UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  game_mode      TEXT NOT NULL DEFAULT 'computer',  -- 'computer' | 'multiplayer'
   opponent_name  TEXT,
   player_color   TEXT,          -- 'white' | 'black'
   game_outcome   TEXT,          -- 'win' | 'loss' | 'draw'
@@ -85,3 +88,7 @@ CREATE POLICY "game_history: own rows insert"
 -- Index for fast "my recent games" queries
 CREATE INDEX IF NOT EXISTS game_history_user_created
   ON game_history (user_id, created_at DESC);
+
+-- Index for the Stats tab's "my multiplayer games" filter
+CREATE INDEX IF NOT EXISTS game_history_user_mode_created
+  ON game_history (user_id, game_mode, created_at DESC);

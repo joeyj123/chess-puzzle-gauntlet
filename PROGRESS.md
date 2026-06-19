@@ -92,17 +92,63 @@ the Stockfish engine never actually worked in production.
    simultaneous sign-in with the same Google account already works via
    "Sign in with Google" for devices after the first.
 
-### Still to do (next chat)
-- Multiplayer (Live Chess / Duel) game history — persist results to a table,
-  surface in a Stats tab, make reviewable. Not started. Needs to explicitly
-  exclude vs-Computer games per request.
-- Game Review overlay: top accuracy bar is obscured by phone notch/front
-  camera on some devices — needs safe-area padding or scroll scoped to just
-  the Review overlay. Not started.
 - **User should retest after this session's fix lands**: vs-Computer play at
   each difficulty should now show real strategic differences (not random
   blunders), and Game Review should finish in well under a minute with varied,
   non-100% accuracy scores.
+
+### Session 17 changes
+
+1. **`src/App.css`** — fixed the Game Review notch/scroll bug, scoped only to
+   `.review-overlay` (no other overlay touched). Root cause: `.review-overlay`
+   inherited `justify-content: center` from the shared `.duel-overlay` rule,
+   so when its content overflowed, the overflow was centered (top got cut off
+   by the phone's notch/front camera) instead of starting at the top and
+   scrolling. Fixed with `justify-content: flex-start`, `overflow-y: auto`,
+   and `padding-top: max(1.5rem, env(safe-area-inset-top, 1.5rem))` (a numeric
+   floor, since `env()` isn't populated on all Android punch-hole devices).
+
+2. **Multiplayer (Live Chess) game history** — persisted to Supabase,
+   excludes vs-Computer games, viewable + reviewable from the Stats tab.
+   - **`supabase/schema.sql`** — added `game_mode TEXT NOT NULL DEFAULT
+     'computer'` to `game_history` (`'computer' | 'multiplayer'`) plus an index
+     on `(user_id, game_mode, created_at DESC)`.
+   - **`supabase/add-game-mode.sql`** (new) — migration for the user's
+     already-deployed DB (`ALTER TABLE ... ADD COLUMN IF NOT EXISTS` +
+     matching index). **User still needs to run this once in the Supabase SQL
+     Editor** — see note below.
+   - **`src/ComputerChess.jsx`** — its existing `game_history` insert now sets
+     `game_mode: 'computer'` explicitly.
+   - **`src/LiveChess.jsx`** — added `saveGameToHistory(absWinner, pgn,
+     myRole)`, called from all three places a multiplayer game can end:
+     checkmate/stalemate/etc. detected locally (`checkGameOver`), resigning
+     locally (`handleResign`), and learning the game ended via the opponent's
+     move through Supabase Realtime (`subscribeToGame`'s `UPDATE` handler) —
+     this last path is how the player who *didn't* deliver the final blow
+     still gets their own row saved. A `savedHistoryRef` guards against
+     double-saving when a player's own DB write echoes back to them via their
+     own subscription. Takes a new `userId` prop (LiveChess has its own
+     non-Supabase-auth player-identity system, so this had to be threaded in
+     separately, mirroring `ComputerChess`). Fixed a stale-closure risk:
+     `subscribeToGame` is `useCallback(fn, [])` so its handler only ever sees
+     first-render props — `saveGameToHistory` now takes `myRole` as an
+     explicit parameter at every call site (not read from `role` state) and
+     reads the user id from a `userIdRef` kept in sync via `useEffect`.
+   - **`src/App.jsx`** — `<LiveChess>` now receives `userId={user?.id ?? null}`
+     (same pattern as `<ComputerChess>`). Stats tab gained a "Multiplayer
+     games" list: fetches the signed-in user's `game_mode = 'multiplayer'`
+     rows on opening the tab, shows date/color/outcome per row, and each row's
+     "Review" button reuses the existing `reviewPgn`/`reviewColor`/
+     `reviewOpen` state to open `GameReview` — same flow as reviewing a
+     vs-Computer game.
+   - **`src/App.css`** — small additions for the new list (`.mp-history`,
+     `.mp-history-row`, `.mp-outcome-{win,loss,draw}` color coding); no
+     existing rules changed.
+
+**Action needed from user:** run `supabase/add-game-mode.sql` once in the
+Supabase Dashboard → SQL Editor (safe to re-run; only needed because the
+table already existed before `game_mode` did). New installs running the full
+`schema.sql` already get the column.
 
 ### Session 15 changes
 

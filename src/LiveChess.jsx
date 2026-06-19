@@ -105,8 +105,18 @@ export default function LiveChess(props) {
   )
 }
 
-function LiveChessGame({ settings, initialRoom, onClose, onReviewGame }) {
+function LiveChessGame({ settings, initialRoom, onClose, onReviewGame, userId }) {
   const myId = useRef(getOrCreatePlayerId())
+  // Guards against a double-save: the player who delivers checkmate/resigns
+  // sees game-over locally AND (a moment later) via their own Supabase
+  // realtime echo of the status update they just wrote.
+  const savedHistoryRef = useRef(false)
+  // subscribeToGame's realtime handler is memoized once on mount (see its
+  // useCallback below) and would otherwise close over a stale `userId` from
+  // that first render — mirror it in a ref so the closure always reads the
+  // current value.
+  const userIdRef = useRef(userId)
+  useEffect(() => { userIdRef.current = userId }, [userId])
 
   // ── Connection state ─────────────────────────────────────────────────────
   const [phase, setPhase]         = useState('lobby')   // 'lobby' | 'playing' | 'results'
@@ -186,8 +196,13 @@ function LiveChessGame({ settings, initialRoom, onClose, onReviewGame }) {
             tryHighlightLastMove(row.pgn)
           }
 
-          // Game over via resign or server-detected end
+          // Game over via resign or server-detected end (this fires for
+          // BOTH players — the one who triggered it locally already saved
+          // via checkGameOver/handleResign, savedHistoryRef guards against
+          // a double-save there; this is how the OTHER player's history
+          // gets saved, since they only learn of game-over via this event)
           if (row.status === 'done' && row.winner) {
+            saveGameToHistory(row.winner, row.pgn, myRole)
             setResult({ winner: row.winner, reason: row.winner === 'draw' ? 'Draw' : 'Resignation' })
             setPhase('results')
           }
@@ -292,6 +307,31 @@ function LiveChessGame({ settings, initialRoom, onClose, onReviewGame }) {
       .catch(() => setRoomError('Failed to join game.'))
   }, [initialRoom, subscribeToGame])
 
+  // Persist a finished multiplayer game to game_history (fire-and-forget;
+  // never blocks the UI). `absWinner` is 'host' | 'guest' | 'draw'; `pgn` is
+  // the full move list; `myRole` is passed explicitly (rather than read from
+  // the `role` state) because this is also called from subscribeToGame's
+  // realtime handler, which is memoized once on mount and would otherwise
+  // see a stale role. Each player saves their own row (RLS requires
+  // user_id = auth.uid()), so this runs once per player per game.
+  function saveGameToHistory(absWinner, pgn, myRole) {
+    const uid = userIdRef.current
+    if (!supabase || !uid || savedHistoryRef.current) return
+    savedHistoryRef.current = true
+    const outcome = absWinner === 'draw' ? 'draw' : absWinner === myRole ? 'win' : 'loss'
+    supabase.from('game_history').insert({
+      user_id:       uid,
+      game_mode:     'multiplayer',
+      opponent_name: 'Online opponent',
+      player_color:  myRole === 'host' ? 'white' : 'black',
+      game_outcome:  outcome,
+      pgn_string:    pgn,
+      accuracy_score: null,
+    }).then(() => {}).catch(err => {
+      console.warn('[LiveChess] saveGameToHistory failed:', err.message)
+    })
+  }
+
   // ── Check for game-over after every local move ───────────────────────────
   function checkGameOver(g, myRole, code) {
     if (!g.isGameOver()) return false
@@ -318,6 +358,7 @@ function LiveChessGame({ settings, initialRoom, onClose, onReviewGame }) {
     if (supabase && code) {
       supabase.from('chess_games').update({ status: 'done', winner }).eq('id', code).then(() => {})
     }
+    saveGameToHistory(winner, g.pgn(), myRole)
     setResult({ winner, reason })
     setPhase('results')
     return true
@@ -403,6 +444,7 @@ function LiveChessGame({ settings, initialRoom, onClose, onReviewGame }) {
     if (supabase && roomCode) {
       supabase.from('chess_games').update({ status: 'done', winner }).eq('id', roomCode).then(() => {})
     }
+    saveGameToHistory(winner, game.pgn(), role)
     setResult({ winner, reason: 'Resignation' })
     setPhase('results')
   }
