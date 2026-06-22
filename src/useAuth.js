@@ -46,6 +46,20 @@ function consumeOAuthError() {
   return { code, description: desc }
 }
 
+/** True when the current URL contains an OAuth callback payload. */
+function detectOAuthCallback() {
+  const search = new URLSearchParams(window.location.search)
+  return !!search.get('code') || window.location.hash.includes('access_token')
+}
+
+/** True when running as an installed PWA (standalone display mode). */
+function isStandalonePWA() {
+  return (
+    window.navigator.standalone === true ||
+    window.matchMedia('(display-mode: standalone)').matches
+  )
+}
+
 async function refreshUser() {
   if (!supabase) return null
   const { data: { user }, error } = await supabase.auth.getUser()
@@ -68,13 +82,9 @@ export function useAuth() {
   const REDIRECT_URL = 'https://chess-puzzle-gauntlet.vercel.app'
 
   // OAuth (Google sign-in/link) leaves the SPA entirely and comes back via a
-  // full page reload — React state (which panel was open, the resumed
-  // vs-Computer game, etc.) is gone. Without this flag, App.jsx's "auto-
-  // reopen the saved game on load" logic fires on that reload exactly like
-  // it would after the tab being backgrounded, so the user lands back on the
-  // bot-game screen with no visible sign that sign-in did anything. Setting
-  // this right before leaving for Google lets App.jsx detect "we're coming
-  // back from OAuth" on the next load and reopen Settings instead.
+  // full page reload — React state is gone. Setting this flag right before
+  // leaving lets App.jsx detect "we're coming back from OAuth" on the next
+  // load and reopen Settings instead of the old bot-game screen.
   const markOAuthPending = () => {
     try { sessionStorage.setItem('cpg-oauth-pending', '1') } catch { /* ignore */ }
   }
@@ -116,6 +126,8 @@ export function useAuth() {
     })
     if (error) {
       console.error('[Auth] signInWithGoogle failed:', error.message)
+      // Clear error so the button stays clickable
+      setAuthError(null)
       return { data, error }
     }
     if (data?.url) {
@@ -134,6 +146,31 @@ export function useAuth() {
 
     let cancelled = false
 
+    // Register the listener FIRST, before init() runs, so we never miss a
+    // SIGNED_IN event that fires during the async init flow.
+    //
+    // We only null the user on an explicit SIGNED_OUT — not on INITIAL_SESSION
+    // with a null session (which fires before the OAuth code exchange completes
+    // and would race against our init() logic and blank the user).
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (cancelled) return
+      if (session?.user) {
+        const fresh = await refreshUser()
+        if (!cancelled) {
+          setUser(fresh ?? session.user)
+          if (userHasGoogle(fresh ?? session.user)) {
+            setGoogleAlreadyLinked(false)
+            setAuthError(null)
+          }
+          setLoading(false)
+        }
+      } else if (event === 'SIGNED_OUT') {
+        // Only clear the user on an intentional sign-out, not on intermediate
+        // null sessions that appear during the PKCE code exchange.
+        if (!cancelled) setUser(null)
+      }
+    })
+
     async function init() {
       const oauthErr = consumeOAuthError()
       if (oauthErr) {
@@ -145,19 +182,22 @@ export function useAuth() {
         }
       }
 
-      // PKCE flow (Supabase v2 default): Google redirects back with ?code=
-      // Implicit flow fallback: token arrives in the URL hash (#access_token=)
-      // Both need the URL cleaned up after Supabase processes them.
-      const searchParams = new URLSearchParams(window.location.search)
-      if (searchParams.get('code')) {
-        try {
-          await supabase.auth.exchangeCodeForSession(window.location.href)
-        } catch (e) {
-          console.error('[Auth] PKCE code exchange failed:', e)
+      // Detect whether we're landing from an OAuth redirect.
+      // supabaseClient.js sets detectSessionInUrl:true + flowType:'pkce', so
+      // Supabase automatically exchanges the ?code= during createClient() and
+      // fires SIGNED_IN via onAuthStateChange above.  Do NOT call
+      // exchangeCodeForSession manually — double-exchanging the code causes the
+      // server to reject the second attempt, which can fire SIGNED_OUT and
+      // blank the UI (the "flash then reset" bug).
+      const isOAuthReturn = detectOAuthCallback()
+
+      if (isOAuthReturn) {
+        // In standalone PWA mode the JS runtime sometimes needs a tick to
+        // finish the async PKCE exchange before getSession() reflects it.
+        if (isStandalonePWA()) {
+          await new Promise(r => setTimeout(r, 150))
         }
-        window.history.replaceState(null, '', window.location.pathname)
-      } else if (window.location.hash.includes('access_token')) {
-        await supabase.auth.getSession()
+        // Clean the callback params from the URL regardless of outcome.
         window.history.replaceState(null, '', window.location.pathname)
       }
 
@@ -166,9 +206,8 @@ export function useAuth() {
 
       if (sessionError) {
         console.error('[Auth] getSession failed:', sessionError.message)
-        setAuthError(sessionError.message)
-        setLoading(false)
-        return
+        // Don't set authError here — a session fetch failure shouldn't lock
+        // the sign-in button.  Just fall through to anonymous sign-in.
       }
 
       if (session?.user) {
@@ -185,6 +224,15 @@ export function useAuth() {
         return
       }
 
+      // If we're on an OAuth return URL but getSession() returned null, the
+      // PKCE exchange is still in flight and onAuthStateChange will deliver
+      // the session shortly.  Don't race it with an anonymous sign-in.
+      if (isOAuthReturn) {
+        setLoading(false)
+        return
+      }
+
+      // Fresh visitor — create an anonymous session.
       for (let attempt = 0; attempt < 3; attempt++) {
         const { data, error } = await supabase.auth.signInAnonymously()
         if (cancelled) return
@@ -198,7 +246,11 @@ export function useAuth() {
         }
 
         console.error(`[Auth] anonymous sign-in attempt ${attempt + 1} failed:`, error?.message)
-        if (!oauthErr) setAuthError(error?.message ?? 'Sign-in failed')
+        // Only surface the error after all retries — and never when returning
+        // from OAuth (the button should always stay clickable).
+        if (attempt === 2 && !oauthErr) {
+          setAuthError(error?.message ?? 'Sign-in failed')
+        }
         if (attempt < 2) await new Promise(r => setTimeout(r, 1500 * (attempt + 1)))
       }
 
@@ -206,20 +258,6 @@ export function useAuth() {
     }
 
     init()
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (cancelled) return
-      if (session?.user) {
-        const fresh = await refreshUser()
-        setUser(fresh ?? session.user)
-        if (userHasGoogle(fresh ?? session.user)) {
-          setGoogleAlreadyLinked(false)
-          setAuthError(null)
-        }
-      } else {
-        setUser(null)
-      }
-    })
 
     return () => {
       cancelled = true
@@ -254,11 +292,7 @@ export function useAuth() {
   }, [user, authError, signInAnonymously])
 
   // Sign out of whatever account is active on THIS device and drop back to a
-  // fresh guest session. Other devices signed in with the same Google account
-  // are untouched — Supabase sessions are per-device, so signing in on a
-  // second device never kicks the first one out automatically. This just
-  // gives this device a clean way to leave/switch accounts without needing
-  // a manual storage-clear/refresh.
+  // fresh guest session.
   const signOut = useCallback(async () => {
     if (!supabase) return { error: { message: 'Supabase not configured' } }
     setAuthError(null)
@@ -269,8 +303,7 @@ export function useAuth() {
     }
     setUser(null)
     setGoogleAlreadyLinked(false)
-    // Immediately re-establish a guest session so the app isn't left signed
-    // out — matches the normal "first load" state.
+    // Immediately re-establish a guest session so the app isn't left signed out.
     await signInAnonymously()
     return { error: null }
   }, [signInAnonymously])
