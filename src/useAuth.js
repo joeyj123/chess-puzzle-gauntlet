@@ -62,7 +62,10 @@ export function useAuth() {
   const [authError, setAuthError] = useState(null)
   const [googleAlreadyLinked, setGoogleAlreadyLinked] = useState(false)
 
-  const redirectTo = () => window.location.origin + window.location.pathname
+  // Always redirect back to the canonical production URL so mobile PWA
+  // standalone mode (which opens OAuth in the system browser) routes the
+  // token back into the correct origin rather than a localhost or preview URL.
+  const REDIRECT_URL = 'https://chess-puzzle-gauntlet.vercel.app'
 
   // OAuth (Google sign-in/link) leaves the SPA entirely and comes back via a
   // full page reload — React state (which panel was open, the resumed
@@ -106,8 +109,9 @@ export function useAuth() {
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: redirectTo(),
+        redirectTo: REDIRECT_URL,
         scopes: 'email profile',
+        skipNonceCheck: true,
       },
     })
     if (error) {
@@ -141,7 +145,18 @@ export function useAuth() {
         }
       }
 
-      if (window.location.hash.includes('access_token')) {
+      // PKCE flow (Supabase v2 default): Google redirects back with ?code=
+      // Implicit flow fallback: token arrives in the URL hash (#access_token=)
+      // Both need the URL cleaned up after Supabase processes them.
+      const searchParams = new URLSearchParams(window.location.search)
+      if (searchParams.get('code')) {
+        try {
+          await supabase.auth.exchangeCodeForSession(window.location.href)
+        } catch (e) {
+          console.error('[Auth] PKCE code exchange failed:', e)
+        }
+        window.history.replaceState(null, '', window.location.pathname)
+      } else if (window.location.hash.includes('access_token')) {
         await supabase.auth.getSession()
         window.history.replaceState(null, '', window.location.pathname)
       }
@@ -221,8 +236,9 @@ export function useAuth() {
     const { data, error } = await supabase.auth.linkIdentity({
       provider: 'google',
       options: {
-        redirectTo: redirectTo(),
+        redirectTo: REDIRECT_URL,
         scopes: 'email profile',
+        skipNonceCheck: true,
       },
     })
     if (error) {
