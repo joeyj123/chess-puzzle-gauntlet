@@ -83,7 +83,7 @@ export default function App() {
   const [loadError,   setLoadError]   = useState(null)
   const [noMatch,     setNoMatch]     = useState(false)
   const [settings,    updateSettings] = useSettings()
-  const { user, isAnonymous, authError, googleAlreadyLinked, signInAnonymously, signInWithGoogle, linkGoogle, signOut } = useAuth()
+  const { user, isAnonymous, authError, googleAlreadyLinked, oauthProcessing, signInAnonymously, signInWithGoogle, linkGoogle, signOut } = useAuth()
   const [hintLevel,   setHintLevel]   = useState(0)
   const [history,     setHistory]     = useState([])
   const [wrongFen,    setWrongFen]    = useState(null)
@@ -1392,6 +1392,8 @@ export default function App() {
                       🚪 Sign Out
                     </button>
                   </>
+                ) : oauthProcessing ? (
+                  <p className="settings-hint">Completing secure sign-in…</p>
                 ) : supabaseClient ? (
                   <>
                     <p className="settings-hint">

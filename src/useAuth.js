@@ -46,10 +46,21 @@ function consumeOAuthError() {
   return { code, description: desc }
 }
 
-/** True when the current URL contains an OAuth callback payload. */
+/**
+ * True when the current URL contains any OAuth callback payload.
+ * Covers PKCE (?code=), implicit (#access_token), and error returns (?error= / #error=).
+ * Called synchronously at module level and inside useState initializer so it
+ * reads the URL BEFORE any history.replaceState cleanup.
+ */
 function detectOAuthCallback() {
   const search = new URLSearchParams(window.location.search)
-  return !!search.get('code') || window.location.hash.includes('access_token')
+  const hash   = new URLSearchParams(window.location.hash.replace(/^#/, ''))
+  return (
+    !!search.get('code')         ||
+    !!search.get('error')        ||
+    !!hash.get('access_token')   ||
+    !!hash.get('error')
+  )
 }
 
 /** True when running as an installed PWA (standalone display mode). */
@@ -75,6 +86,11 @@ export function useAuth() {
   const [loading,   setLoading]   = useState(true)
   const [authError, setAuthError] = useState(null)
   const [googleAlreadyLinked, setGoogleAlreadyLinked] = useState(false)
+
+  // Synchronously captured at mount, before any effect or history.replaceState
+  // runs.  True means we are on an OAuth return URL and must not run the
+  // anonymous guest sign-in fallback — the Google session is on its way.
+  const [oauthProcessing, setOauthProcessing] = useState(() => detectOAuthCallback())
 
   // Always redirect back to the canonical production URL so mobile PWA
   // standalone mode (which opens OAuth in the system browser) routes the
@@ -126,8 +142,7 @@ export function useAuth() {
     })
     if (error) {
       console.error('[Auth] signInWithGoogle failed:', error.message)
-      // Clear error so the button stays clickable
-      setAuthError(null)
+      setAuthError(null) // never lock the button on initiation failure
       return { data, error }
     }
     if (data?.url) {
@@ -146,93 +161,119 @@ export function useAuth() {
 
     let cancelled = false
 
-    // Register the listener FIRST, before init() runs, so we never miss a
-    // SIGNED_IN event that fires during the async init flow.
+    // ── onAuthStateChange — registered BEFORE init() so no SIGNED_IN is missed.
     //
-    // We only null the user on an explicit SIGNED_OUT — not on INITIAL_SESSION
-    // with a null session (which fires before the OAuth code exchange completes
-    // and would race against our init() logic and blank the user).
+    // Rules:
+    // • SIGNED_IN  → accept the session, clear any stale error, stop processing.
+    // • SIGNED_OUT → only clear user on intentional sign-out (not on intermediate
+    //                null sessions during PKCE exchange).
+    // • Anything else with a session → update the user.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (cancelled) return
+
       if (session?.user) {
         const fresh = await refreshUser()
         if (!cancelled) {
           setUser(fresh ?? session.user)
+          // Always clear errors and processing flag when a real session lands.
+          setAuthError(null)
+          setOauthProcessing(false)
           if (userHasGoogle(fresh ?? session.user)) {
             setGoogleAlreadyLinked(false)
-            setAuthError(null)
           }
           setLoading(false)
         }
       } else if (event === 'SIGNED_OUT') {
-        // Only clear the user on an intentional sign-out, not on intermediate
-        // null sessions that appear during the PKCE code exchange.
-        if (!cancelled) setUser(null)
+        // Only wipe the user on an intentional sign-out — intermediate null
+        // sessions during PKCE exchange must not clear state.
+        if (!cancelled) {
+          setUser(null)
+          setOauthProcessing(false)
+        }
       }
     })
 
     async function init() {
+      // ── Ironclad OAuth guard ─────────────────────────────────────────────────
+      // Check the URL RIGHT NOW (synchronous, before any awaits or URL cleanup).
+      // supabaseClient.js uses detectSessionInUrl:true + flowType:'pkce', so
+      // Supabase exchanges ?code= automatically during createClient() and fires
+      // SIGNED_IN via onAuthStateChange above.
+      //
+      // If ANY OAuth signal is present:
+      //   • Do NOT run anonymous sign-in — the Google session is in flight.
+      //   • Do NOT set authError — it would show "Guest sign-in failed".
+      //   • Keep loading=true — onAuthStateChange will call setLoading(false).
+      //   • Only add a brief PWA delay + URL cleanup, then exit.
+      const isOAuthReturn = detectOAuthCallback()
+
       const oauthErr = consumeOAuthError()
       if (oauthErr) {
+        // consumeOAuthError also called replaceState, so URL is clean.
         if (oauthErr.code === 'identity_already_exists') {
           setGoogleAlreadyLinked(true)
           setAuthError('This Google account is already linked. Use "Sign in with Google" below.')
         } else {
           setAuthError(oauthErr.description || oauthErr.code || 'Sign-in failed')
         }
+        // An error redirect means OAuth failed — no session is coming.
+        // Fall through to anonymous sign-in below.
       }
 
-      // Detect whether we're landing from an OAuth redirect.
-      // supabaseClient.js sets detectSessionInUrl:true + flowType:'pkce', so
-      // Supabase automatically exchanges the ?code= during createClient() and
-      // fires SIGNED_IN via onAuthStateChange above.  Do NOT call
-      // exchangeCodeForSession manually — double-exchanging the code causes the
-      // server to reject the second attempt, which can fire SIGNED_OUT and
-      // blank the UI (the "flash then reset" bug).
-      const isOAuthReturn = detectOAuthCallback()
-
-      if (isOAuthReturn) {
-        // In standalone PWA mode the JS runtime sometimes needs a tick to
-        // finish the async PKCE exchange before getSession() reflects it.
+      if (isOAuthReturn && !oauthErr) {
+        // Genuine OAuth success return.  Let Supabase finish — do not touch
+        // authError, do not run anonymous sign-in, keep loading=true.
         if (isStandalonePWA()) {
+          // PWA standalone needs a tick for the async PKCE exchange to settle.
           await new Promise(r => setTimeout(r, 150))
         }
-        // Clean the callback params from the URL regardless of outcome.
+        // Clean ?code= / #access_token from the URL.
         window.history.replaceState(null, '', window.location.pathname)
-      }
 
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-      if (cancelled) return
+        // Give onAuthStateChange up to 8 s to deliver the session before
+        // giving up and falling back to a guest sign-in.
+        await new Promise(r => setTimeout(r, 8000))
+        if (cancelled) return
 
-      if (sessionError) {
-        console.error('[Auth] getSession failed:', sessionError.message)
-        // Don't set authError here — a session fetch failure shouldn't lock
-        // the sign-in button.  Just fall through to anonymous sign-in.
-      }
+        // Re-check: if session arrived in the 8 s window we're done.
+        const { data: { session } } = await supabase.auth.getSession()
+        if (cancelled) return
+        if (session?.user) return  // onAuthStateChange already handled state
 
-      if (session?.user) {
-        const fresh = await refreshUser()
-        if (!cancelled) {
-          setUser(fresh ?? session.user)
-          if (fresh) await ensureProfile(fresh.id)
-          if (userHasGoogle(fresh ?? session.user)) {
-            setGoogleAlreadyLinked(false)
-            setAuthError(null)
-          }
+        // 8 s passed and still no session — exchange silently failed.
+        console.warn('[Auth] OAuth return: no session after 8 s, falling back to guest')
+        setOauthProcessing(false)
+        // Fall through to anonymous sign-in below.
+      } else {
+        // Normal (non-OAuth) load or OAuth error load: try getSession first.
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+        if (cancelled) return
+
+        if (sessionError) {
+          console.error('[Auth] getSession failed:', sessionError.message)
+          // Don't set authError — session fetch failure shouldn't lock the button.
         }
-        setLoading(false)
-        return
+
+        if (session?.user) {
+          const fresh = await refreshUser()
+          if (!cancelled) {
+            setUser(fresh ?? session.user)
+            if (fresh) await ensureProfile(fresh.id)
+            if (userHasGoogle(fresh ?? session.user)) {
+              setGoogleAlreadyLinked(false)
+              setAuthError(null)
+            }
+          }
+          setLoading(false)
+          return
+        }
       }
 
-      // If we're on an OAuth return URL but getSession() returned null, the
-      // PKCE exchange is still in flight and onAuthStateChange will deliver
-      // the session shortly.  Don't race it with an anonymous sign-in.
-      if (isOAuthReturn) {
-        setLoading(false)
-        return
-      }
-
-      // Fresh visitor — create an anonymous session.
+      // ── Anonymous sign-in fallback ────────────────────────────────────────────
+      // Only reached for:
+      //   (a) fresh visitors with no session
+      //   (b) OAuth error returns (oauthErr is set — error already shown)
+      //   (c) OAuth success with no session after 8 s safety timeout
       for (let attempt = 0; attempt < 3; attempt++) {
         const { data, error } = await supabase.auth.signInAnonymously()
         if (cancelled) return
@@ -246,8 +287,8 @@ export function useAuth() {
         }
 
         console.error(`[Auth] anonymous sign-in attempt ${attempt + 1} failed:`, error?.message)
-        // Only surface the error after all retries — and never when returning
-        // from OAuth (the button should always stay clickable).
+        // Surface the error only after all retries and only when not in an
+        // OAuth flow — prevents locking the sign-in button mid-redirect.
         if (attempt === 2 && !oauthErr) {
           setAuthError(error?.message ?? 'Sign-in failed')
         }
@@ -316,6 +357,7 @@ export function useAuth() {
     authError,
     googleAlreadyLinked,
     isAnonymous,
+    oauthProcessing,
     signInAnonymously,
     signInWithGoogle,
     linkGoogle,
