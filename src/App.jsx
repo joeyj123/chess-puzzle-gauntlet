@@ -15,6 +15,7 @@ import MultiplayerDuel from './MultiplayerDuel'
 import LiveChess from './LiveChess'
 import ComputerChess, { hasSavedComputerGame } from './ComputerChess'
 import GameReview from './GameReview'
+import GameHistoryBrowser from './GameHistoryBrowser'
 import { useAuth } from './useAuth'
 import { supabase as supabaseClient } from './supabaseClient'
 import './App.css'
@@ -117,36 +118,6 @@ export default function App() {
   const [reviewOpen,    setReviewOpen]    = useState(false)
   const [reviewPgn,     setReviewPgn]     = useState('')
   const [reviewColor,   setReviewColor]   = useState('w')
-  // Stats tab — multiplayer (Live Chess, non-bot) game history from Supabase
-  const [mpHistory,        setMpHistory]        = useState([])
-  const [mpHistoryLoading, setMpHistoryLoading] = useState(false)
-  const [mpHistoryError,   setMpHistoryError]   = useState(null)
-
-  // Fetch multiplayer game history whenever the Stats tab is opened (refetch
-  // each time, since a new game may have finished since the last visit).
-  useEffect(() => {
-    if (activePanel !== 'stats' || !user?.id || !supabaseClient) return
-    let cancelled = false
-    setMpHistoryLoading(true)
-    setMpHistoryError(null)
-    supabaseClient
-      .from('game_history')
-      .select('*')
-      .eq('user_id', user.id)
-      .eq('game_mode', 'multiplayer')
-      .order('created_at', { ascending: false })
-      .limit(50)
-      .then(({ data, error }) => {
-        if (cancelled) return
-        if (error) {
-          setMpHistoryError('Could not load game history.')
-        } else {
-          setMpHistory(data || [])
-        }
-        setMpHistoryLoading(false)
-      })
-    return () => { cancelled = true }
-  }, [activePanel, user?.id])
   // URL params: ?room=CODE opens the puzzle duel, ?chess=CODE opens a live chess game
   const [initialRoom]  = useState(() => new URLSearchParams(window.location.search).get('room'))
   const [initialChess] = useState(() => new URLSearchParams(window.location.search).get('chess'))
@@ -1217,39 +1188,16 @@ export default function App() {
                 )}
 
                 <div className="stats-breakdown-group mp-history">
-                  <div className="stats-breakdown-title">Multiplayer games</div>
-                  {!user?.id ? (
-                    <p className="settings-hint">Sign in to track multiplayer games.</p>
-                  ) : mpHistoryLoading ? (
-                    <p className="settings-hint">Loading…</p>
-                  ) : mpHistoryError ? (
-                    <p className="settings-hint">{mpHistoryError}</p>
-                  ) : mpHistory.length === 0 ? (
-                    <p className="settings-hint">No multiplayer games played yet.</p>
-                  ) : (
-                    mpHistory.map(g => (
-                      <div className="stats-breakdown-row mp-history-row" key={g.id}>
-                        <span className="mp-history-meta">
-                          {new Date(g.created_at).toLocaleDateString()} ·{' '}
-                          {g.player_color === 'white' ? 'White' : 'Black'} ·{' '}
-                          <span className={`mp-outcome mp-outcome-${g.game_outcome}`}>
-                            {g.game_outcome === 'win' ? 'Win' : g.game_outcome === 'loss' ? 'Loss' : 'Draw'}
-                          </span>
-                        </span>
-                        <button
-                          className="link-btn"
-                          onClick={() => {
-                            setReviewPgn(g.pgn_string || '')
-                            setReviewColor(g.player_color === 'white' ? 'w' : 'b')
-                            setReviewOpen(true)
-                          }}
-                          disabled={!g.pgn_string}
-                        >
-                          Review
-                        </button>
-                      </div>
-                    ))
-                  )}
+                  <div className="stats-breakdown-title">Game history</div>
+                  <GameHistoryBrowser
+                    user={user}
+                    supabase={supabaseClient}
+                    onReview={(pgn, color) => {
+                      setReviewPgn(pgn)
+                      setReviewColor(color)
+                      setReviewOpen(true)
+                    }}
+                  />
                 </div>
 
                 <button className="btn btn-danger" onClick={handleResetStats}>

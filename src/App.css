@@ -487,6 +487,115 @@
   color: var(--text-muted);
 }
 
+/* -- GameHistoryBrowser -------------------------------------------------- */
+
+.ghb-root {
+  display: flex;
+  flex-direction: column;
+  gap: .35rem;
+  margin-top: .4rem;
+}
+
+.ghb-filters {
+  display: flex;
+  gap: .4rem;
+  flex-wrap: wrap;
+  margin-bottom: .2rem;
+}
+
+.ghb-filter-btn {
+  background: none;
+  border: 1px solid var(--border, #444);
+  border-radius: 999px;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: .73rem;
+  padding: .2rem .65rem;
+  transition: background .15s, color .15s;
+}
+
+.ghb-filter-btn.active,
+.ghb-filter-btn:hover {
+  background: var(--accent, #90caf9);
+  border-color: var(--accent, #90caf9);
+  color: #000;
+}
+
+.ghb-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem;
+  padding: .25rem 0;
+  border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,.07));
+}
+
+.ghb-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .35rem;
+  font-size: .78rem;
+  color: var(--text-muted);
+}
+
+.ghb-date {
+  white-space: nowrap;
+}
+
+.ghb-mode {
+  border-radius: 4px;
+  font-size: .68rem;
+  font-weight: 600;
+  padding: .1rem .35rem;
+  text-transform: uppercase;
+  letter-spacing: .03em;
+}
+
+.ghb-mode-computer {
+  background: rgba(144,202,249,.15);
+  color: #90caf9;
+}
+
+.ghb-mode-multiplayer {
+  background: rgba(255,183,77,.15);
+  color: #ffb74d;
+}
+
+.ghb-color {
+  font-size: .75rem;
+}
+
+.ghb-outcome {
+  font-weight: 700;
+}
+
+.ghb-outcome-win  { color: #4caf50; }
+.ghb-outcome-loss { color: #e57373; }
+.ghb-outcome-draw { color: var(--text-muted); }
+
+.ghb-accuracy {
+  font-size: .73rem;
+  opacity: .75;
+}
+
+.ghb-load-more {
+  align-self: center;
+  background: none;
+  border: 1px solid var(--border, #444);
+  border-radius: 6px;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: .78rem;
+  margin-top: .4rem;
+  padding: .3rem .9rem;
+}
+
+.ghb-load-more:hover:not(:disabled) {
+  border-color: var(--accent, #90caf9);
+  color: var(--accent, #90caf9);
+}
+
 /* -- Achievements panel ------------------------------------------------- */
 
 .badge-grid {
