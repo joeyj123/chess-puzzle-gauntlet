@@ -953,7 +953,7 @@ export default function App() {
       )}
 
       {/* ── Multiplayer Duel overlay ── */}
-      {duelOpen && allPuzzles && (
+      {duelOpen && (allPuzzles || initialRoom) && (
         <MultiplayerDuel
           allPuzzles={allPuzzles}
           settings={settings}

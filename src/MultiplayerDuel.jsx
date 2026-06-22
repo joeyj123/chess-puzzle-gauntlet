@@ -261,6 +261,10 @@ function MultiplayerDuelGame({ allPuzzles, settings, initialRoom, onClose }) {
       .then((result) => {
         // null means an error was already handled above — don't start the game
         if (result === null) return
+        if (result?.error) {
+          setRoomError('Failed to join room.')
+          return
+        }
         subscribeToRoom(initialRoom, 'guest')
         // Guest triggers countdown on their end immediately after joining
         startCountdown()

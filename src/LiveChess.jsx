@@ -301,6 +301,10 @@ function LiveChessGame({ settings, initialRoom, onClose, onReviewGame, userId })
       })
       .then((result) => {
         if (result === null) return
+        if (result?.error) {
+          setRoomError('Failed to join game.')
+          return
+        }
         try { subscribeToGame(initialRoom, 'guest') } catch (e) { console.error('[LiveChess] subscribe error:', e) }
         setPhase('playing')
       })
