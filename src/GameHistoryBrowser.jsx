@@ -98,7 +98,7 @@ export default function GameHistoryBrowser({ user, supabase, onReview }) {
         const mode    = g.game_mode === 'multiplayer' ? 'Multiplayer' : 'vs Computer'
         const color   = g.player_color === 'white' ? 'White' : g.player_color === 'black' ? 'Black' : null
         const outcome = g.game_outcome
-        const hasPgn  = !!g.pgn_string
+        const hasPgn  = !!g.pgn_string?.trim()
 
         return (
           <div className="ghb-row" key={g.id}>
@@ -117,7 +117,7 @@ export default function GameHistoryBrowser({ user, supabase, onReview }) {
               className="link-btn"
               onClick={() => {
                 if (!hasPgn) return
-                const col = g.player_color === 'white' ? 'w' : 'b'
+                const col = g.player_color === 'black' ? 'b' : 'w'
                 onReview(g.pgn_string, col)
               }}
               disabled={!hasPgn}
