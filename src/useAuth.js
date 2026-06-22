@@ -47,20 +47,30 @@ function consumeOAuthError() {
 }
 
 /**
- * True when the current URL contains any OAuth callback payload.
- * Covers PKCE (?code=), implicit (#access_token), and error returns (?error= / #error=).
- * Called synchronously at module level and inside useState initializer so it
- * reads the URL BEFORE any history.replaceState cleanup.
+ * True ONLY when the URL contains a genuine Supabase OAuth callback payload.
+ * Deliberately strict to prevent false positives from app-internal query params
+ * (e.g. ?room=, ?chess=, or any ?code= / ?error= that isn't from Supabase).
+ *
+ * Rules:
+ *  • PKCE success : ?code= MUST be paired with ?state= (Supabase always sends both)
+ *  • Implicit     : #access_token= in hash (very Supabase-specific)
+ *  • OAuth error  : ?error= or #error= MUST be paired with error_code or
+ *                   error_description (Supabase always includes at least one)
  */
 function detectOAuthCallback() {
   const search = new URLSearchParams(window.location.search)
   const hash   = new URLSearchParams(window.location.hash.replace(/^#/, ''))
-  return (
-    !!search.get('code')         ||
-    !!search.get('error')        ||
-    !!hash.get('access_token')   ||
-    !!hash.get('error')
-  )
+
+  const hasPkce = !!search.get('code') && !!search.get('state')
+
+  const hasImplicitToken = !!hash.get('access_token')
+
+  const hasOAuthError =
+    (!!search.get('error') || !!hash.get('error')) &&
+    (!!search.get('error_code')        || !!hash.get('error_code') ||
+     !!search.get('error_description') || !!hash.get('error_description'))
+
+  return hasPkce || hasImplicitToken || hasOAuthError
 }
 
 /** True when running as an installed PWA (standalone display mode). */
@@ -129,6 +139,15 @@ export function useAuth() {
   const signInWithGoogle = useCallback(async () => {
     if (!supabase) return { error: { message: 'Supabase not configured' } }
     setAuthError(null)
+    // Show "Completing sign-in…" immediately on button click, before any async
+    // work — this is the only legitimate way oauthProcessing becomes true on a
+    // normal load (without an OAuth callback URL).
+    setOauthProcessing(true)
+    // Safety: if navigation doesn't happen within 3 s (e.g. Supabase call
+    // fails or popup is blocked), reset the loading state so the button is
+    // clickable again.
+    const safetyTimer = setTimeout(() => setOauthProcessing(false), 3000)
+
     // Sign out the current guest session first — otherwise Supabase tries to
     // link Google to this guest, which fails if Google is already on another account.
     await supabase.auth.signOut()
@@ -141,17 +160,21 @@ export function useAuth() {
       },
     })
     if (error) {
+      clearTimeout(safetyTimer)
       console.error('[Auth] signInWithGoogle failed:', error.message)
-      setAuthError(null) // never lock the button on initiation failure
+      setOauthProcessing(false)
       return { data, error }
     }
     if (data?.url) {
       markOAuthPending()
       window.location.href = data.url
+      // safetyTimer will fire if the page somehow doesn't navigate; fine.
       return { data, error: null }
     }
+    clearTimeout(safetyTimer)
+    setOauthProcessing(false)
     return { data, error: { message: 'No OAuth URL returned from Supabase' } }
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!supabase) {
@@ -312,6 +335,9 @@ export function useAuth() {
       const signedIn = await signInAnonymously()
       if (!signedIn) return { error: { message: authError ?? 'Could not sign in' } }
     }
+    setOauthProcessing(true)
+    const safetyTimer = setTimeout(() => setOauthProcessing(false), 3000)
+
     const { data, error } = await supabase.auth.linkIdentity({
       provider: 'google',
       options: {
@@ -321,6 +347,8 @@ export function useAuth() {
       },
     })
     if (error) {
+      clearTimeout(safetyTimer)
+      setOauthProcessing(false)
       console.error('[Auth] linkGoogle failed:', error.message)
       return { data, error }
     }
@@ -329,8 +357,10 @@ export function useAuth() {
       window.location.href = data.url
       return { data, error: null }
     }
+    clearTimeout(safetyTimer)
+    setOauthProcessing(false)
     return { data, error: { message: 'No OAuth URL returned from Supabase' } }
-  }, [user, authError, signInAnonymously])
+  }, [user, authError, signInAnonymously]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Sign out of whatever account is active on THIS device and drop back to a
   // fresh guest session.

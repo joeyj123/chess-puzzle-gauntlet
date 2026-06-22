@@ -489,7 +489,6 @@ export default function App() {
         fireConfettiFromElement(boardWrapRef, {
           particleCount: 90,
           spread: 75,
-          origin: { y: 0.6 },
         })
       }
     } else {
